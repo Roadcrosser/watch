@@ -212,6 +212,48 @@ async def update_entry(message, event, options=None):
 
     await message.edit(content=ret)
 
+prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>"]
+
+cmds = {
+    "eval": evaluate
+}
+
+@bot.event
+async def on_message(message):
+    if (not bot.timestamp or message.author.bot or not message.content or 
+    (isinstance(message.channel, discord.abc.GuildChannel) and
+    not message.channel.permissions_for(message.guild.me).send_messages
+    )):
+        return
+
+    msg = None
+    for p in prefixes: # TODO: check (also make) per-guild prefix cache
+        if message.content.lower().startswith(p):
+            msg = message.content[len(p):].strip()
+            break
+
+    if not msg:
+        return
+
+    split = msg.split(None, 1)
+
+    if len(split) == 0:
+        return
+
+    cmd = split[0].lower()
+
+    if cmd in cmds:
+        if isinstance(message.channel, discord.abc.GuildChannel):
+            print("{0.created_at} - {0.guild.name}#{0.channel.name} - {0.author.name}: {0.content}".format(message))
+        else:
+            print("{0.created_at} - DM - {0.author.name}: {0.content}".format(message))
+
+        args = None
+        if len(split) > 1:
+            args = split[1]
+        kwargs = {"message": message, "cmd": cmd, "args": args}
+        func = await cmds[cmd](**kwargs)
+
 _ = None
 
 async def evaluate(message, args, **kwargs):

@@ -211,7 +211,7 @@ async def update_entry(message, event, options=None):
         name = invite_reg.sub("\g<1>[INVITE REDACTED]", name)
     name = clean_emoji(name)
 
-    ret += "**User**: {1}#{2} ({0})".format(name, event["target"].discriminator, event["target"].id)
+    ret += "**User**: {}#{} ({})".format(name, event["target"].discriminator, event["target"].id)
     if options["ping_target"]:
         ret += " (<@{}>)".format(event["target"].id)
 

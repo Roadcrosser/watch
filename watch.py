@@ -161,7 +161,7 @@ def decode_options(options):
 async def post_entries(entries, channel):
     async with bot.db.acquire() as conn:
         async with conn.transaction():
-            guild_config = await conn.fetchrow("SELECT FOR UPDATE * FROM guild_configs WHERE guild_id = $1;", channel.guild.id)
+            guild_config = await conn.fetchrow("SELECT * FOR UPDATE FROM guild_configs WHERE guild_id = $1;", channel.guild.id)
             options = decode_options(guild_config.get("options"))
 
             latest_event_count = guild_config.get("latest_event_count")

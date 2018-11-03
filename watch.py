@@ -29,7 +29,7 @@ async def on_ready():
         # await db.execute("CREATE TABLE IF NOT EXISTS events(event_id integer, guild_id bigint REFERENCES guild_configs(guild_id), event_type event_t, reason text, message_id bigint, target bigint, actor bigint, role_id bigint, PRIMARY KEY (event_id, guild_id));")
 
         # Look like CREATE TYPE IF NOT EXISTS isn't a thing so just run those in the db before starting the bot ever
-        
+
         bot.db = db
 
         bot.dispatch("run_check_loop")
@@ -211,5 +211,25 @@ async def update_entry(message, event, options=None):
     ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event["actor"].name), event["actor"].discriminator)
 
     await message.edit(content=ret)
+
+_ = None
+
+async def evaluate(message, args, **kwargs):
+    if message.author.id == 116138050710536192 and args:
+        global _
+        ctx = message
+        if args.split(' ', 1)[0] == 'await':
+            try:
+                _ = await eval(args.split(' ', 1)[1])
+                await message.channel.send(_)
+            except Exception as e:
+                await message.channel.send("```\n" + str(e) + "\n```")
+        else:
+            try:
+                _ = eval(args)
+                await message.channel.send(_)
+            except Exception as e:
+                await message.channel.send("```\n" + str(e) + "\n```")
+        return True
 
 bot.run(cfg["token"])

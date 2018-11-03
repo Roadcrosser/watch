@@ -214,10 +214,6 @@ async def update_entry(message, event, options=None):
 
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>"]
 
-cmds = {
-    "eval": evaluate
-}
-
 @bot.event
 async def on_message(message):
     if (not bot.timestamp or message.author.bot or not message.content or 
@@ -273,5 +269,9 @@ async def evaluate(message, args, **kwargs):
             except Exception as e:
                 await message.channel.send("```\n" + str(e) + "\n```")
         return True
+
+cmds = {
+    "eval": evaluate
+}
 
 bot.run(cfg["token"])

@@ -24,10 +24,12 @@ async def on_ready():
         credentials = {"user": "watchbot", "password": cfg["db_pass"], "database": "watchdata", "host": "localhost"}
         db = await asyncpg.create_pool(**credentials)
 
-        await db.execute("CREATE TABLE IF NOT EXISTS guild_configs(guild_id bigint PRIMARY KEY, post_channel bigint, prefix text DEFAULT '!', options integer DEFAULT 0, latest_event_count integer, special_roles bigint[], recent_events bigint[]);")
-        await db.execute("CREATE TYPE IF NOT EXISTS event_t AS enum('kick', 'ban', 'unban', 'role_add', 'role_remove');")
-        await db.execute("CREATE TABLE IF NOT EXISTS events(event_id integer, guild_id bigint REFERENCES guild_configs(guild_id), event_type event_t, reason text, message_id bigint, target bigint, actor bigint, role_id bigint, PRIMARY KEY (event_id, guild_id));")
+        # await db.execute("CREATE TABLE IF NOT EXISTS guild_configs(guild_id bigint PRIMARY KEY, post_channel bigint, prefix text DEFAULT '!', options integer DEFAULT 0, latest_event_count integer, special_roles bigint[], recent_events bigint[]);")
+        # await db.execute("CREATE TYPE event_t AS enum('kick', 'ban', 'unban', 'role_add', 'role_remove');")
+        # await db.execute("CREATE TABLE IF NOT EXISTS events(event_id integer, guild_id bigint REFERENCES guild_configs(guild_id), event_type event_t, reason text, message_id bigint, target bigint, actor bigint, role_id bigint, PRIMARY KEY (event_id, guild_id));")
 
+        # Look like CREATE TYPE IF NOT EXISTS isn't a thing so just run those in the db before starting the bot ever
+        
         bot.db = db
 
         bot.dispatch("run_check_loop")

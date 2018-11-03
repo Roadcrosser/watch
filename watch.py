@@ -156,10 +156,11 @@ async def check_guild_logs(guild, guild_config):
 def decode_options(options):
     # also figure out a way to make this code easier to update ig
     # 1 - reveal invites (don't obfuscate them)
+    # 2 - ping the target on mod events
 
     return {
         "reveal_invites": options & 0b1 == 0b1,
-        # "option_2": options & 0b10 == 0b10,
+        "ping_target": options & 0b10 == 0b10,
         # "option_4": options & 0b100 != 0b100,
     }
 
@@ -210,8 +211,11 @@ async def update_entry(message, event, options=None):
         name = invite_reg.sub("\g<1>[INVITE REDACTED]", name)
     name = clean_emoji(name)
 
-    ret += "**User**: {1}#{2} ({0}) (<@{0}>)\n".format(event["target"].id, name, event["target"].discriminator)
-    
+    ret += "**User**: {1}#{2} ({0})".format(name, event["target"].discriminator, event["target"].id)
+    if options["ping_target"]:
+        ret += " (<@{}>)".format(event["target"].id)
+
+    ret += "\n"
     if event["role"]:
         ret += "**Role**: {0.name} ({0.id})\n".format(event["role"])
 

@@ -57,7 +57,7 @@ async def on_run_check_loop():
             if not guild.me.guild_permissions.view_audit_log:
                 continue
             
-            guild_config = get_guild_configs(guild.id)
+            guild_config = await get_guild_configs(guild.id)
             if not guild_config:
                 continue
             

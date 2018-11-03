@@ -198,19 +198,19 @@ async def update_entry(message, event, options=None):
         options = await get_guild_configs(message.guild.id)
         options = decode_options(options)
     
-    ret = "**{}** | Case {}".format(event_t_display[event_t_str.index(event["type"])], event["count"])
+    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event["type"])], event["count"])
 
     name = event["target"].name
     if not options["reveal_invites"]:
         name = invite_reg.sub("\g<1>[INVITE REDACTED]", name)
     name = clean_emoji(name)
 
-    ret += "**User**: {1}#{2} ({0}) (<@{0}>)".format(event["target"].id, name, event["target"].discriminator)
+    ret += "**User**: {1}#{2} ({0}) (<@{0}>)\n".format(event["target"].id, name, event["target"].discriminator)
     
     if event["role"]:
-        ret += "**Role**: {0.name} ({0.id})".format(event["role"])
+        ret += "**Role**: {0.name} ({0.id})\n".format(event["role"])
 
-    ret += "**Reason**: {}".format(event["reason"])
+    ret += "**Reason**: {}\n".format(event["reason"])
     ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event["actor"].name), event["actor"].discriminator)
 
     await message.edit(content=ret)

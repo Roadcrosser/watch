@@ -185,7 +185,7 @@ async def post_entries(entries, channel):
                 
                 await update_entry(msg, {**e, "count": latest_event_count}, options)
 
-            await bot.db.execute("""
+            await conn.execute("""
             UPDATE guild_configs
             SET latest_event_count = $1
             WHERE guild_id = $2;

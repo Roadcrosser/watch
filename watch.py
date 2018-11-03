@@ -69,7 +69,7 @@ async def on_run_check_loop():
             
             # Get entries
             entries = await check_guild_logs(guild, guild_config)
-            await post_entries(channel, entries)
+            await post_entries(entries, channel)
 
         await asyncio.sleep(2)
 

@@ -91,6 +91,9 @@ async def check_guild_logs(guild, guild_config):
         if oldest == None:
             new_recent_events = [e.id for e in raw_events[:3]]
 
+        if not raw_events:
+            break
+        
         oldest = raw_events[-1].id
 
         for e in raw_events:

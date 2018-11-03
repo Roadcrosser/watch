@@ -84,8 +84,9 @@ async def check_guild_logs(guild, guild_config):
     events = []
     special_roles = guild_config.get("special_roles", [])
 
+    break_signal = False
     oldest = None
-    while oldest == None or oldest > min(recent_events):
+    while not break_signal:
         raw_events = await guild.audit_logs(limit=4, before=discord.Object(id=oldest)).flatten() # set to 4 to test pagination
 
         if oldest == None:
@@ -97,6 +98,10 @@ async def check_guild_logs(guild, guild_config):
         oldest = raw_events[-1].id
 
         for e in raw_events:
+            if e.id <= min(recent_events):
+                break_signal = True
+                break
+
             if e.id in recent_events:
                 continue
             

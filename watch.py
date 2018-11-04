@@ -7,6 +7,7 @@ import json
 import datetime
 import re
 from emoji import clean_emoji
+from event import Event
 
 bot = discord.Client()
 
@@ -108,13 +109,11 @@ async def check_guild_logs(guild, guild_config):
             if not e.action in event_t:
                 continue
             
-            to_add = {
-                "target": e.target,
-                "actor": e.user,
-                "reason": e.reason if e.reason else "*None set*",
-                "type": event_t_str[event_t.index(e.action)],
-                "role": None
-                }
+            target = e.target,
+            actor = e.user,
+            reason = e.reason if e.reason else "*None set*",
+            event_type = event_t_str[event_t.index(e.action)],
+            role = None
 
             if e.action == discord.AuditLogAction.member_role_update:
                 before = [r for r in e.changes.before.roles]
@@ -122,27 +121,19 @@ async def check_guild_logs(guild, guild_config):
 
                 for r in before:
                     if r.id in special_roles:
-                        events += [
-                            {
-                            **to_add,
-                            "type": "role_remove",
-                            "role": r
-                            }
-                            ]
+                        event_type = "role_remove"
+                        role = r
+                        events += [Event(guild.id, event_type, target.id, str(target), actor, reason, role.id, role.name)]
 
                 for r in after:
                     if r.id in special_roles:
-                        events += [
-                            {
-                            **to_add,
-                            "type": "role_add",
-                            "role": r
-                            }
-                            ]
+                        event_type = "role_remove"
+                        role = r
+                        events += [Event(guild.id, event_type, target.id, str(target), actor, reason, role.id, role.name)]
 
                 continue
 
-            events += [to_add]
+            events += [Event(guild.id, event_type, target.id, str(target), actor, reason, role.id, role.name)]
             continue
 
     await bot.db.execute("""
@@ -176,20 +167,12 @@ async def post_entries(entries, channel):
                 msg = await channel.send("Loading...")
                 latest_event_count += 1
                 await conn.execute("""INSERT INTO events(
-                event_id, guild_id, event_type, reason, message_id, target_id, actor, role_id
+                guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
                 ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8);""",
-                latest_event_count,
-                channel.guild.id,
-                e["type"],
-                e["reason"],
-                msg.id,
-                e["target"].id,
-                e["actor"].id,
-                e["role"].id if e["role"] else None
-                )
+                $1, $2, $3, $4, $5, $6, $7, $8, $9);""", *e.db_insert)
                 
-                await update_entry(msg, {**e, "count": latest_event_count}, options)
+                e.set_count(latest_event_count)
+                await update_entry(msg, e, options)
 
             await conn.execute("""
             UPDATE guild_configs
@@ -204,23 +187,23 @@ async def update_entry(message, event, options=None):
         options = await get_guild_configs(message.guild.id)
         options = decode_options(options)
     
-    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event["type"])], event["count"])
+    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.type)], event.count)
 
-    name = event["target"].name
+    name = event.target_name
     if not options["reveal_invites"]:
         name = invite_reg.sub("\g<1>[INVITE REDACTED]", name)
     name = clean_emoji(name)
 
-    ret += "**User**: {}#{} ({})".format(name, event["target"].discriminator, event["target"].id)
+    ret += "**User**: {} ({})".format(name, event.target_id)
     if options["ping_target"]:
-        ret += " (<@{}>)".format(event["target"].id)
+        ret += " (<@{}>)".format(event.target_id)
 
     ret += "\n"
     if event["role"]:
-        ret += "**Role**: {0.name} ({0.id})\n".format(event["role"])
+        ret += "**Role**: {} ({})\n".format(event.role_name, event.role_id)
 
-    ret += "**Reason**: {}\n".format(event["reason"])
-    ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event["actor"].name), event["actor"].discriminator)
+    ret += "**Reason**: {}\n".format(event.reason)
+    ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
 
     await message.edit(content=ret)
 

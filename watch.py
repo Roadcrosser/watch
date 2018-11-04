@@ -8,6 +8,7 @@ import datetime
 import re
 from emoji import clean_emoji
 from event import Event
+from options import Options
 
 bot = discord.Client()
 
@@ -143,22 +144,11 @@ async def check_guild_logs(guild, guild_config):
 
     return events[::-1]
 
-def decode_options(options):
-    # also figure out a way to make this code easier to update ig
-    # 1 - reveal invites (don't obfuscate them)
-    # 2 - ping the target on mod events
-
-    return {
-        "reveal_invites": options & 0b1 == 0b1,
-        "ping_target": options & 0b10 == 0b10,
-        # "option_4": options & 0b100 != 0b100,
-    }
-
 async def post_entries(entries, channel):
     async with bot.db.acquire() as conn:
         async with conn.transaction():
             guild_config = await conn.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1 FOR UPDATE;", channel.guild.id)
-            options = decode_options(guild_config.get("options"))
+            options = Options(guild_config.get("options"))
 
             latest_event_count = guild_config.get("latest_event_count")
 
@@ -187,12 +177,12 @@ def generate_entry(event, options):
     ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], event.count)
 
     name = event.target_name
-    if not options["reveal_invites"]:
+    if not options.reveal_invites:
         name = invite_reg.sub("\g<1>[INVITE REDACTED]", name)
     name = clean_emoji(name)
 
     ret += "**User**: {} ({})".format(name, event.target_id)
-    if options["ping_target"]:
+    if options.ping_target:
         ret += " (<@{}>)".format(event.target_id)
 
     ret += "\n"
@@ -207,7 +197,7 @@ def generate_entry(event, options):
 async def update_entry(message, event, options=None):
     if not options:
         options = await get_guild_configs(message.guild.id)
-        options = decode_options(options)
+        options = Options(options)
     
     await message.edit(content=generate_entry(event, options))
 

@@ -199,7 +199,7 @@ async def update_entry(message, event, options=None):
         ret += " (<@{}>)".format(event.target_id)
 
     ret += "\n"
-    if event["role"]:
+    if event.role_id:
         ret += "**Role**: {} ({})\n".format(event.role_name, event.role_id)
 
     ret += "**Reason**: {}\n".format(event.reason)

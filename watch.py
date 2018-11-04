@@ -163,17 +163,17 @@ async def post_entries(entries, channel):
             latest_event_count = guild_config.get("latest_event_count")
 
             for e in entries:
-                msg = await channel.send("Loading...")
                 latest_event_count += 1
 
                 e.set_count(latest_event_count)
+                msg = await channel.send(generate_entry(e, options))
 
                 await conn.execute("""INSERT INTO events(
-                guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
+                message_id, guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
                 ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9);""", *e.db_insert())
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10);""", msg.id, *e.db_insert())
                 
-                await update_entry(msg, e, options)
+                # await update_entry(msg, e, options)
 
             await conn.execute("""
             UPDATE guild_configs
@@ -183,11 +183,7 @@ async def post_entries(entries, channel):
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
 
-async def update_entry(message, event, options=None):
-    if not options:
-        options = await get_guild_configs(message.guild.id)
-        options = decode_options(options)
-    
+def generate_entry(event, options):
     ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], event.count)
 
     name = event.target_name
@@ -206,7 +202,14 @@ async def update_entry(message, event, options=None):
     ret += "**Reason**: {}\n".format(event.reason)
     ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
 
-    await message.edit(content=ret)
+    return ret
+
+async def update_entry(message, event, options=None):
+    if not options:
+        options = await get_guild_configs(message.guild.id)
+        options = decode_options(options)
+    
+    await message.edit(content=generate_entry(event, options))
 
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚"]
 

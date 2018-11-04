@@ -71,7 +71,7 @@ async def on_run_check_loop():
             
             # Get entries
             entries = await check_guild_logs(guild, guild_config)
-            await post_entries(entries, channel)
+            await post_entries(entries, channel, guild_config)
 
         await asyncio.sleep(2)
 
@@ -136,40 +136,48 @@ async def check_guild_logs(guild, guild_config):
             events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, None, None)]
             continue
 
-    await bot.db.execute("""
-    UPDATE guild_configs
-    SET recent_events = $1
-    WHERE guild_id = $2;
-    """, new_recent_events, guild.id)
-
-    return events[::-1]
-
-async def post_entries(entries, channel):
+    events = events [::-1]
+    
     async with bot.db.acquire() as conn:
         async with conn.transaction():
-            guild_config = await conn.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1 FOR UPDATE;", channel.guild.id)
-            options = Options(guild_config.get("options"))
-
+            await conn.execute("SELECT FROM guild_configs WHERE guild_id = $1 FOR UPDATE;", guild.id) # That's how you're supposed to lock it right?
+            
             latest_event_count = guild_config.get("latest_event_count")
 
-            for e in entries:
+            for e in events:
                 latest_event_count += 1
-
                 e.set_count(latest_event_count)
-                msg = await channel.send(generate_entry(e, options))
 
                 await conn.execute("""INSERT INTO events(
-                message_id, guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
-                ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10);""", msg.id, *e.db_insert())
-                
-                # await update_entry(msg, e, options)
-
+                    guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
+                    ) VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9);""", *e.db_insert())
+                    
             await conn.execute("""
             UPDATE guild_configs
-            SET latest_event_count = $1
-            WHERE guild_id = $2;
-            """, latest_event_count, channel.guild.id)
+            SET recent_events = $1,
+            latest_event_count = $2
+            WHERE guild_id = $3;
+            """, new_recent_events, latest_event_count, guild.id)
+        
+        return events
+
+async def post_entries(entries, channel, guild_config):
+    options = Options(guild_config.get("options"))
+
+    latest_event_count = guild_config.get("latest_event_count")
+
+    for e in entries:
+        msg = await channel.send(generate_entry(e, options))
+        await bot.db.execute("""
+        UPDATE events
+        SET message_id = $1
+        WHERE guild_id = $2
+        AND event_id = $3;
+        """, msg.id, channel.guild.id, e.count)
+
+        # await update_entry(msg, e, options)
+
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
 

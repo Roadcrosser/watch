@@ -265,8 +265,17 @@ async def evaluate(message, args, **kwargs):
                 await message.channel.send("```\n" + str(e) + "\n```")
         return True
 
+async def close(message, **kwargs):
+    if message.author.id == 116138050710536192:
+        msg = await message.channel.send("Shutting down...")
+        await bot.db.close()
+        await bot.logout()
+        await bot.close()
+        exit()
+
 cmds = {
-    "eval": evaluate
+    "eval": evaluate,
+    "quit": close
 }
 
 bot.run(cfg["token"])

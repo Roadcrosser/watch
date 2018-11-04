@@ -1,5 +1,5 @@
 class Event():
-    def __init__(self, guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, count=None):
+    def __init__(self, guild_id, event_type, target_id, target_name, actor, reason, role_id=None, role_name=None, count=None):
         self.guild_id = guild_id
         self.event_type = event_type
         self.target_id = target_id

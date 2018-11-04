@@ -108,9 +108,7 @@ async def check_guild_logs(guild, guild_config):
             
             if not e.action in event_t:
                 continue
-            
-            target = e.target,
-            actor = e.user,
+
             reason = e.reason if e.reason else "*None set*",
             event_type = event_t_str[event_t.index(e.action)],
             role = None
@@ -123,17 +121,17 @@ async def check_guild_logs(guild, guild_config):
                     if r.id in special_roles:
                         event_type = "role_remove"
                         role = r
-                        events += [Event(guild.id, event_type, target.id, str(target), actor, reason, role.id, role.name)]
+                        events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, role.id, role.name)]
 
                 for r in after:
                     if r.id in special_roles:
                         event_type = "role_remove"
                         role = r
-                        events += [Event(guild.id, event_type, target.id, str(target), actor, reason, role.id, role.name)]
+                        events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, role.id, role.name)]
 
                 continue
 
-            events += [Event(guild.id, event_type, target.id, str(target), actor, reason, role.id, role.name)]
+            events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, None, None)]
             continue
 
     await bot.db.execute("""

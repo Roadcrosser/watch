@@ -254,13 +254,13 @@ async def evaluate(message, args, **kwargs):
         if args.split(' ', 1)[0] == 'await':
             try:
                 _ = await eval(args.split(' ', 1)[1])
-                await message.channel.send(_)
+                await message.channel.send(str(_))
             except Exception as e:
                 await message.channel.send("```\n" + str(e) + "\n```")
         else:
             try:
                 _ = eval(args)
-                await message.channel.send(_)
+                await message.channel.send(str(_))
             except Exception as e:
                 await message.channel.send("```\n" + str(e) + "\n```")
         return True

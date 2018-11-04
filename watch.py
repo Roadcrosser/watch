@@ -167,7 +167,7 @@ async def post_entries(entries, channel):
                 await conn.execute("""INSERT INTO events(
                 guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
                 ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9);""", *e.db_insert)
+                $1, $2, $3, $4, $5, $6, $7, $8, $9);""", *e.db_insert())
                 
                 e.set_count(latest_event_count)
                 await update_entry(msg, e, options)

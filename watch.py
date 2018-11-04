@@ -109,8 +109,8 @@ async def check_guild_logs(guild, guild_config):
             if not e.action in event_t:
                 continue
 
-            reason = e.reason if e.reason else "*None set*",
-            event_type = event_t_str[event_t.index(e.action)],
+            reason = e.reason if e.reason else "*None set*"
+            event_type = event_t_str[event_t.index(e.action)]
             role = None
 
             if e.action == discord.AuditLogAction.member_role_update:

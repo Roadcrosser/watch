@@ -165,8 +165,6 @@ async def check_guild_logs(guild, guild_config):
 async def post_entries(entries, channel, guild_config):
     options = Options(guild_config.get("options"))
 
-    latest_event_count = guild_config.get("latest_event_count")
-
     for e in entries:
         msg = await channel.send(generate_entry(e, options))
         await bot.db.execute("""

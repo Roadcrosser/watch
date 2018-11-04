@@ -166,7 +166,7 @@ async def post_entries(entries, channel):
                 latest_event_count += 1
 
                 e.set_count(latest_event_count)
-                
+
                 await conn.execute("""INSERT INTO events(
                 guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
                 ) VALUES (
@@ -187,7 +187,7 @@ async def update_entry(message, event, options=None):
         options = await get_guild_configs(message.guild.id)
         options = decode_options(options)
     
-    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.type)], event.count)
+    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], event.count)
 
     name = event.target_name
     if not options["reveal_invites"]:

@@ -612,6 +612,10 @@ def format_settings(guild, configs):
     return embed
 
 
+async def invite(message, **kwargs):
+    await message.channel.send(f"https://discordapp.com/oauth2/authorize?client_id={cfg['bot_id']}&scope=bot")
+    return True
+
 cmds = {
     "time": time,
     "eval": evaluate,
@@ -620,6 +624,7 @@ cmds = {
     "recall": recall,
     "setup": setup,
     "settings": settings,
+    "invite": invite,
 }
 
 bot.run(cfg["token"])

@@ -149,7 +149,7 @@ async def check_guild_logs(guild, guild_config):
 
                 for r in after:
                     if r.id in special_roles:
-                        event_type = "role_remove"
+                        event_type = "role_add"
                         role = r
                         events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, role.id, role.name)]
 

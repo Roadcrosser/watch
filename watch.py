@@ -6,10 +6,13 @@ import asyncpg
 import json
 import datetime
 import re
+import json
+from io import BytesIO
 import util
 from emoji import clean_emoji
 from event import Event
 from options import Options
+from util import encode, decode
 
 bot = discord.Client()
 
@@ -91,8 +94,7 @@ async def check_guild_logs(guild, guild_config):
     break_signal = False
     oldest = None
     while not break_signal:
-        print(f"checking {guild.name} logs...") #TODO: remove this (or make it look better)
-        raw_events = await guild.audit_logs(limit=100, before=discord.Object(id=oldest)).flatten() # I think pagination works
+        raw_events = await guild.audit_logs(limit=100, before=discord.Object(id=oldest)).flatten()
 
         if oldest == None:
             new_recent_events = [e.id for e in raw_events[:3]]
@@ -428,16 +430,146 @@ async def setup(message, args, **kwargs):
     if not message.author.guild_permissions.manage_guild:
         await message.channel.send("You require the `MANAGE_GUILD` permission to use this command!")
         return
-
-    if not (message.channel.permissions_for(message.guild.me).embed_links and message.channel.permissions_for(message.guild.me).add_reactions):
-        await message.channel.send("I require the `EMBED_LINKS` and `ADD_REACTIONS` permissions to use this command!")
-        return
     
     configs = await get_guild_configs(message.guild.id)
-    recent_events = configs.get("recent_events", [message.id])
 
-    await message.channel.send("Welcome to the ⌚ setup!\nBecause setups are a pain to make on discord, please go to https://sink.discord.bot/⌚ to generate an import code!")
+    if not args:
+        if not (message.channel.permissions_for(message.guild.me).embed_links and message.channel.permissions_for(message.guild.me).attach_files):
+            await message.channel.send("I require the `EMBED_LINKS` and `ATTACH_FILES` permissions to use this command!")
+            return
+            
+        embed = discord.Embed(color=message.guild.me.color)
+    
+        config_export = "None generated."
+
+        files = []
+        if configs:
+            config_export = {
+                "roles": [str(i) for i in configs.get("special_roles", [])],
+                "channel": str(configs.get("post_channel")) if configs.get("post_channel") else None,
+                "options": configs.get("options"),
+                "prefix": configs.get("prefix")
+                }
+            
+            config_export = encode(json.dumps(config_export))
+        
+        if len(config_export) > 1024:
+            b = BytesIO()
+            b.write(config_export.encode("utf-8"))
+            b.seek(0)
+            config_export = "This string was too long to send. Please check the uploaded file."
+            files += [discord.File(b, "config_export.txt")]
+
+        embed.add_field(name="Config Export", value=config_export)
+
+        guild_file = None
+        guild_export = {
+            "roles": [[i.name, str(i.id), str(i.color)] for i in sorted(message.guild.roles, key=lambda x: x.position, reverse=True) if i.id != message.guild.id],
+            "channels": [[i.name, str(i.id)] for i in message.guild.text_channels if i.permissions_for(message.guild.me).send_messages]
+        }
+
+        guild_export = encode(json.dumps(guild_export))
+        
+        if len(guild_export) > 1024:
+            b = BytesIO()
+            b.write(guild_export.encode("utf-8"))
+            b.seek(0)
+            guild_export = "This string was too long to send. Please check the uploaded file."
+            files += [discord.File(b, "guild_data_export.txt")]
+
+        embed.add_field(name="Guild Data Export", value=guild_export)
+
+        await message.channel.send("Welcome to the ⌚ setup!\nPlease go to https://sink.discord.bot/⌚ to generate an import code!\nRun this command with the Import config to set up the bot on this guild.", embed=embed, files=files)
+        
+        return True
+    
+    else:
+        if not (message.channel.permissions_for(message.guild.me).embed_links and message.channel.permissions_for(message.guild.me).add_reactions):
+            await message.channel.send("I require the `EMBED_LINKS` and `ADD_REACTIONS` permissions to use this command!")
+            return
+        
+        channel = None
+        # try:
+        args = json.loads(decode(args))
+        args["post_channel"] = int(args["channel"])
+        args["special_roles"] = [int(r) for r in args["roles"]]
+        args["prefix"] = args["prefix"].strip() if args["prefix"] else None
+        int(args["options"])
+
+        channel = message.guild.get_channel(args["post_channel"])
+        if not channel:
+            raise ValueError
+        # except:
+        #     await message.channel.send("Invalid input!")
+        #     return
+
+        emotes = ["✅", "❎"]
+        msg = await message.channel.send("Here are your imported settings! Please react with ✅ to confirm them. (You can check then again later with the `settings` command)", embed=format_settings(message.guild, args))
+
+        for e in emotes:
+            await msg.add_reaction(e)
+
+        def check(reaction, user):
+            return (reaction.message.id == msg.id and
+                    reaction.emoji in emotes and
+                    user.id == message.author.id)
+
+        try:
+            reaction, user = await bot.wait_for("reaction_add", check=check)
+        except asyncio.TimeoutError:
+            return
+        
+        if reaction.emoji == "✅":
+            await bot.db.execute("""
+            INSERT INTO guild_configs (
+            guild_id, post_channel, prefix, options, latest_event_count, special_roles, recent_events
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (guild_id)
+            DO UPDATE SET
+                post_channel = EXCLUDED.post_channel,
+                prefix = EXCLUDED.prefix,
+                options = EXCLUDED.options,
+                special_roles = EXCLUDED.special_roles
+            ;""", message.guild.id, args["post_channel"], args["prefix"], args["options"], 0, args["special_roles"], [message.id])
+            await message.channel.send("Your settings have been updated.")
+        else:
+            await message.channel.send("Process aborted.")
+
     return True
+
+async def settings(message, **kwargs):
+    if not is_mod(message.author):
+        return
+
+    configs = await get_guild_configs(message.guild.id)
+    if not configs:
+        return
+
+    if not message.channel.permissions_for(message.guild.me).embed_links:
+        await message.channel.send("I require the `EMBED_LINKS` permission to use this command!")
+        return
+    
+    await message.channel.send(f"Settings for **{message.guild.name}**: (You can use the `setup` command to change them)", embed=format_settings(message.guild, configs))
+    return True
+
+def format_settings(guild, configs):
+    embed = discord.Embed(color=guild.me.color)
+    embed.add_field(name="Channel", value=f"<#{configs.get('post_channel')}>")
+
+    guild_roles = {i.id for i in guild.roles}
+    roles = [f"<@&{i}>" for i in configs.get("special_roles") if i in guild_roles]
+    roles = "\n".join(roles) if roles else "None"
+
+    embed.add_field(name="Roles", value=roles)
+
+    options = Options(configs.get("options"))
+
+    option_text = f"{'✅' if options.reveal_invites else '❎'} **Reveal Invites**"
+    option_text += f"\n{'✅' if options.ping_target else '❎'} **Ping Target**"
+
+    embed.add_field(name="Options", value=option_text)
+    embed.add_field(name="Custom Prefix", value=configs.get("prefix"))
+    return embed
 
 
 cmds = {
@@ -446,7 +578,8 @@ cmds = {
     "quit": close,
     "reason": reason,
     "recall": recall,
-    "setup": setup
+    "setup": setup,
+    "settings": settings,
 }
 
 bot.run(cfg["token"])

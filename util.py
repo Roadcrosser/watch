@@ -1,4 +1,6 @@
 import discord
+import codecs
+import base64
 
 async def get_message(bot, channel, message_id):
     pred = lambda m: m.id == message_id
@@ -39,3 +41,9 @@ def message_link(message=None, guild_id=None, channel_id=None, message_id=None):
     if message:
         args = [message.guild.id, message.channel.id, message.id]
     return "https://discordapp.com/channels/{}/{}/{}".format(*args)
+
+def encode(text):
+    return base64.b64encode(codecs.encode(text.encode("utf-8"), "zlib")).decode()
+
+def decode(text):
+    return codecs.decode(base64.b64decode(text.encode("utf-8")), "zlib").decode()

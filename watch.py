@@ -93,7 +93,7 @@ async def on_member_remove(member):
     bot._guild_check_queue += [member.guild]
 
 @bot.event
-async def on_member_role_update(before, after):
+async def on_member_update(before, after):
     if before.roles != after.roles:
         bot._guild_check_queue += [before.guild]
 

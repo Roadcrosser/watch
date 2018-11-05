@@ -519,19 +519,19 @@ async def setup(message, args, **kwargs):
             return
         
         channel = None
-        # try:
-        args = json.loads(decode(args))
-        args["post_channel"] = int(args["channel"])
-        args["special_roles"] = [int(r) for r in args["roles"]]
-        args["prefix"] = args["prefix"].strip() if args["prefix"] else None
-        int(args["options"])
+        try:
+            args = json.loads(decode(args))
+            args["post_channel"] = int(args["channel"])
+            args["special_roles"] = [int(r) for r in args["roles"]]
+            args["prefix"] = args["prefix"].strip() if args["prefix"] else None
+            int(args["options"])
 
-        channel = message.guild.get_channel(args["post_channel"])
-        if not channel:
-            raise ValueError
-        # except:
-        #     await message.channel.send("Invalid input!")
-        #     return
+            channel = message.guild.get_channel(args["post_channel"])
+            if not channel:
+                raise ValueError
+        except:
+            await message.channel.send("Invalid input!")
+            return
 
         emotes = ["✅", "❎"]
         msg = await message.channel.send("Here are your imported settings! Please react with ✅ to confirm them. (You can check then again later with the `settings` command)", embed=format_settings(message.guild, args))

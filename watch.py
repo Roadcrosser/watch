@@ -77,7 +77,8 @@ async def on_run_check_loop():
         await asyncio.sleep(2)
 
 async def get_guild_configs(guild_id):
-    return await bot.db.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1;", guild_id)
+    ret = await bot.db.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1;", guild_id)
+    return ret if ret else {}
 
 async def check_guild_logs(guild, guild_config):
     recent_events = guild_config.get("recent_events", [])
@@ -255,7 +256,7 @@ async def on_message(message):
 
 async def time(message, args, **kwargs):
     now = datetime.datetime.utcnow()
-    await message.channel.send(f"The time is now `{now.strftime('%H:%M')}` UTC.")
+    await message.channel.send(f"\⌚ The time is now `{now.strftime('%H:%M')}` UTC.")
 
 _ = None
 
@@ -425,12 +426,17 @@ async def setup(message, args, **kwargs):
     if not message.author.guild_permissions.manage_guild:
         await message.channel.send("You require the `MANAGE_GUILD` permission to use this command!")
         return
-    if not (message.channel.permissions_for(message.guild.me).embed_links and message.channel.permissions_for(message.guild.me).add_reactions):
-        await message.channel.send("I require the `EMBED_LINKS` and `ADD_REACTIONS` permission to use this command!")
-        return
 
+    if not (message.channel.permissions_for(message.guild.me).embed_links and message.channel.permissions_for(message.guild.me).add_reactions):
+        await message.channel.send("I require the `EMBED_LINKS` and `ADD_REACTIONS` permissions to use this command!")
+        return
     
-    await message.channel.send("We")
+    configs = await get_guild_configs(message.guild.id)
+    recent_events = configs.get("recent_events", [message.id])
+
+    await message.channel.send("Welcome to the ⌚ setup!\nBecause setups are a pain to make on discord, please go to https://sink.discord.bot/⌚ to generate an import code!")
+    return True
+
 
 cmds = {
     "time": time,

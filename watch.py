@@ -6,6 +6,7 @@ import asyncpg
 import json
 import datetime
 import re
+import util
 from emoji import clean_emoji
 from event import Event
 from options import Options
@@ -209,6 +210,9 @@ async def update_entry(message, event, options=None):
 
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚"]
 
+def event_from_row(row, actor=None, reason=None):
+    return Event(row.get("guild_id"), row.get("event_type"), row.get("target_id"), row.get("target_name"), row.get("actor") if not actor else actor, row.get("reason") if not reason else reason, row.get("role_id"), row.get("role_name"))
+
 @bot.event
 async def on_message(message):
     if (not bot.timestamp or message.author.bot or not message.content or 
@@ -273,9 +277,99 @@ async def close(message, **kwargs):
         await bot.close()
         exit()
 
+def get_case_number(num, max_num):
+    num = max_num
+
+    if num.lower() in ("i", "|"):
+        raise ValueError("You realise that `L` is supposed to stand for `latest`, right?")
+
+    if num.lower() != "l":
+        try:
+            num = int(num)
+            if num > max_num:
+                raise ValueError
+        except:
+            raise ValueError("Invalid case number.")
+
+    return num
+
+async def reason(message, args, **kwargs):
+    if not args:
+        return
+
+    perms = message.author.guild_permissions
+    if not any((perms.ban_members, perms.kick_members, perms.manage_roles)):
+        return
+
+    configs = await get_guild_configs(message.guild.id)
+    channel = message.guild.get_channel(configs.get("post_channel", 0))
+
+    if not (configs and channel and channel.permissions_for(message.guild.me).send_messages):
+        await message.channel.send("This guild has not been (or is improperly) set up. Please use the `setup` command to get started.")
+        return
+
+    num = configs.get("latest_event_count")
+
+    arg = args.split(None, 1)
+
+    try:
+        num = get_case_number(arg[0], num)
+    except ValueError as e:
+        await message.channel.send(str(e))
+        return
+
+    
+    if len(arg) < 2:
+        await message.channel.send("No reason was given!")
+        return
+
+    reason = arg[1]
+
+    event = await bot.db.fetchrow("SELECT * FROM events WHERE guild_id = $1 AND event_id = $2;", message.guild.id, num)
+    if not event:
+        await message.channel.send("!!! That event doesn't exist. You shouldn't be seeing this. Please contact the bot maintainer.")
+        return
+
+    event_perms = []
+    if perms.ban_members:
+        event_perms += ["ban", "unban"]
+    if perms.kick_members:
+        event_perms += ["kick"]
+    if perms.manage_roles:
+        event_perms += ["role_add", "role_remove"]
+
+    if not event.get("event_type") in event_perms:
+        await message.channel.send("You have insufficient permissions to update that reason.")
+        return
+
+    new_entry = event_from_row(event, message.author, reason)
+
+    msg = event.get("message_id")
+    if msg:
+        msg = await util.get_message(bot, channel, msg)
+    
+    await bot.db.execute(f"""
+    UPDATE events
+    SET reason = $1
+    WHERE guild_id = $2
+    AND event_id = $3;
+    """, reason, message.guild.id, num)
+
+    ret = "👌"
+
+    if msg:
+        await update_entry(msg, new_entry, Options(configs.get("options")))
+    else:
+        ret += "\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it."
+
+    await message.channel.send(ret)
+    return True    
+
+
 cmds = {
     "eval": evaluate,
-    "quit": close
+    "quit": close,
+    "reason": reason
 }
 
 bot.run(cfg["token"])

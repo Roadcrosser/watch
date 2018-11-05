@@ -166,6 +166,7 @@ async def check_guild_logs(guild, guild_config):
 async def post_entries(entries, channel, guild_config):
     options = Options(guild_config.get("options"))
 
+    ret = []
     for e in entries:
         msg = await channel.send(generate_entry(e, options))
         await bot.db.execute("""
@@ -174,8 +175,10 @@ async def post_entries(entries, channel, guild_config):
         WHERE guild_id = $2
         AND event_id = $3;
         """, msg.id, channel.guild.id, e.count)
-
+        ret += [msg]
         # await update_entry(msg, e, options)
+    
+    return ret
 
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
@@ -199,6 +202,7 @@ def generate_entry(event, options):
     ret += "**Reason**: {}\n".format(event.reason)
     ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
 
+    ret = ret.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
     return ret
 
 async def update_entry(message, event, options=None):
@@ -211,7 +215,7 @@ async def update_entry(message, event, options=None):
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚"]
 
 def event_from_row(row, actor=None, reason=None):
-    return Event(row.get("guild_id"), row.get("event_type"), row.get("target_id"), row.get("target_name"), row.get("actor") if not actor else actor, row.get("reason") if not reason else reason, row.get("role_id"), row.get("role_name"))
+    return Event(row.get("guild_id"), row.get("event_type"), row.get("target_id"), row.get("target_name"), row.get("actor") if not actor else actor, row.get("reason") if not reason else reason, row.get("role_id"), row.get("role_name"), row.get("event_id"))
 
 @bot.event
 async def on_message(message):
@@ -278,27 +282,31 @@ async def close(message, **kwargs):
         exit()
 
 def get_case_number(num, max_num):
-    num = max_num
+    ret = max_num
 
     if num.lower() in ("i", "|"):
         raise ValueError("You realise that `L` is supposed to stand for `latest`, right?")
 
     if num.lower() != "l":
         try:
-            num = int(num)
-            if num > max_num:
+            ret = int(num)
+            if ret > max_num:
                 raise ValueError
         except:
             raise ValueError("Invalid case number.")
 
-    return num
+    return ret
+
+def is_mod(member):
+    perms = member.guild_permissions
+    return any((perms.ban_members, perms.kick_members, perms.manage_roles))
 
 async def reason(message, args, **kwargs):
     if not args:
         return
 
     perms = message.author.guild_permissions
-    if not any((perms.ban_members, perms.kick_members, perms.manage_roles)):
+    if not is_mod(message.author):
         return
 
     configs = await get_guild_configs(message.guild.id)
@@ -365,11 +373,57 @@ async def reason(message, args, **kwargs):
     await message.channel.send(ret)
     return True    
 
+async def recall(message, args, **kwargs):
+    if not args:
+        return
+
+    configs = await get_guild_configs(message.guild.id)
+    channel = message.guild.get_channel(configs.get("post_channel", 0))
+
+    if not (configs and channel and channel.permissions_for(message.guild.me).send_messages):
+        return
+
+    num = configs.get("latest_event_count")
+
+    try:
+        num = get_case_number(args, num)
+    except ValueError as e:
+        await message.channel.send(str(e))
+        return
+
+    event = await bot.db.fetchrow("SELECT * FROM events WHERE guild_id = $1 AND event_id = $2;", message.guild.id, num)
+    if not event:
+        await message.channel.send("!!! That event doesn't exist. You shouldn't be seeing this. Please contact the bot maintainer.")
+        return
+    
+    msg = event.get("message_id")
+    if msg:
+        msg = await util.get_message(bot, channel, msg)
+
+    ret = ""
+
+    if not msg:
+        ret = "This entry has been deleted. Please ask a mod to run this command to reinstate it."
+        if is_mod(message.author):
+            ret = "This entry has been reinstated.\n"
+            actor = await util.get_member(bot, event.get("actor"))
+            new_entry = event_from_row(event, actor)
+            msg = await post_entries([new_entry], channel, configs)
+            msg = msg[0]
+
+    if msg:
+        ret += f"{util.message_link(msg)}\n\n{msg.content}"
+
+    await message.channel.send(ret)
+    return True
+
+
 
 cmds = {
     "eval": evaluate,
     "quit": close,
-    "reason": reason
+    "reason": reason,
+    "recall": recall
 }
 
 bot.run(cfg["token"])

@@ -17,3 +17,25 @@ async def get_message(bot, channel, message_id):
         return msg
     except Exception:
         return None
+
+async def get_member(bot, member_id):
+    user = bot.get_user(member_id)
+    
+    if not user:
+        try:
+            user = await bot.get_user_info(member_id)
+        except:
+            pass
+    
+    if not user:
+        user = discord.Object(id=member_id)
+        user.name = "Deleted User"
+        user.discriminator = "0000"
+
+    return user
+
+def message_link(message=None, guild_id=None, channel_id=None, message_id=None):
+    args = [guild_id, channel_id, message_id]
+    if message:
+        args = [message.guild.id, message.channel.id, message.id]
+    return "https://discordapp.com/channels/{}/{}/{}".format(*args)

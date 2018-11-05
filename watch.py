@@ -79,6 +79,23 @@ async def on_run_check_loop():
 
         await asyncio.sleep(2)
 
+@bot.event
+async def on_member_ban(guild, user):
+    bot._guild_check_queue += [guild]
+
+@bot.event
+async def on_member_unban(guild, user):
+    bot._guild_check_queue += [guild]
+
+@bot.event
+async def on_member_remove(member):
+    bot._guild_check_queue += [member.guild]
+
+@bot.event
+async def on_member_role_update(before, after):
+    if before.roles != after.roles:
+        bot._guild_check_queue += [before.guild]
+
 async def get_guild_configs(guild_id):
     ret = await bot.db.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1;", guild_id)
     return ret if ret else {}

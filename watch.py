@@ -613,7 +613,7 @@ def format_settings(guild, configs):
 
 
 async def invite(message, **kwargs):
-    await message.channel.send(f"https://discordapp.com/oauth2/authorize?client_id={cfg['bot_id']}&scope=bot")
+    await message.channel.send(f"<https://discordapp.com/oauth2/authorize?client_id={cfg['bot_id']}&scope=bot>")
     return True
 
 cmds = {

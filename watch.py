@@ -503,12 +503,17 @@ async def setup(message, args, **kwargs):
 
         guild_export = encode(json.dumps(guild_export))
         
-        if len(guild_export) > 1024:
+        if len(guild_export) > 2048:
             b = BytesIO()
             b.write(guild_export.encode("utf-8"))
             b.seek(0)
             guild_export = "This string was too long to send. Please check the uploaded file."
             files += [discord.File(b, "guild_data_export.txt")]
+        
+        elif len(guild_export) > 1024:
+            embed.title = "Guild Data Export (Full code)"
+            embed.description = guild_export
+            guild_export = "This string was too long to put in here. Please check the long bit of text above."
 
         embed.add_field(name="Guild Data Export", value=guild_export)
 

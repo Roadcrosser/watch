@@ -253,6 +253,10 @@ async def on_message(message):
         kwargs = {"message": message, "cmd": cmd, "args": args}
         func = await cmds[cmd](**kwargs)
 
+async def time(message, args, **kwargs):
+    now = datetime.datetime.utcnow()
+    await message.channel.send(f"The time is now `{now.strftime('%H:%M')}` UTC.")
+
 _ = None
 
 async def evaluate(message, args, **kwargs):
@@ -417,13 +421,24 @@ async def recall(message, args, **kwargs):
     await message.channel.send(ret)
     return True
 
+async def setup(message, args, **kwargs):
+    if not message.author.guild_permissions.manage_guild:
+        await message.channel.send("You require the `MANAGE_GUILD` permission to use this command!")
+        return
+    if not (message.channel.permissions_for(message.guild.me).embed_links and message.channel.permissions_for(message.guild.me).add_reactions):
+        await message.channel.send("I require the `EMBED_LINKS` and `ADD_REACTIONS` permission to use this command!")
+        return
 
+    
+    await message.channel.send("We")
 
 cmds = {
+    "time": time,
     "eval": evaluate,
     "quit": close,
     "reason": reason,
-    "recall": recall
+    "recall": recall,
+    "setup": setup
 }
 
 bot.run(cfg["token"])

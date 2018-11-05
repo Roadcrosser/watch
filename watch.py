@@ -113,7 +113,7 @@ async def check_guild_logs(guild, guild_config):
             if not e.action in event_t:
                 continue
 
-            reason = e.reason.strip() if e.reason else "*None set*"
+            reason = e.reason.strip() if e.reason else None
             event_type = event_t_str[event_t.index(e.action)]
             role = None
 
@@ -184,7 +184,7 @@ async def post_entries(entries, channel, guild_config):
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
 
-def generate_entry(event, options):
+def generate_entry(event, options, default_reason="Responsible moderator, please do `reason {} <reason>`"):
     ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], event.count)
 
     name = event.target_name
@@ -200,7 +200,7 @@ def generate_entry(event, options):
     if event.role_id:
         ret += "**Role**: {} ({})\n".format(event.role_name, event.role_id)
 
-    ret += "**Reason**: {}\n".format(event.reason)
+    ret += "**Reason**: {}\n".format(event.reason if event.reason else default_reason.format(event.count))
     ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
 
     ret = ret.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
@@ -225,7 +225,7 @@ async def on_message(message):
     not message.content or
     not isinstance(message.channel, discord.abc.GuildChannel) or
     not message.channel.permissions_for(message.guild.me).send_messages
-    )):
+    ):
         return
 
     msg = None

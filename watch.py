@@ -220,8 +220,10 @@ def event_from_row(row, actor=None, reason=None):
 
 @bot.event
 async def on_message(message):
-    if (not bot.timestamp or message.author.bot or not message.content or 
-    (isinstance(message.channel, discord.abc.GuildChannel) and
+    if (not bot.timestamp or
+    message.author.bot or
+    not message.content or
+    not isinstance(message.channel, discord.abc.GuildChannel) or
     not message.channel.permissions_for(message.guild.me).send_messages
     )):
         return

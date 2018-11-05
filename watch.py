@@ -252,7 +252,10 @@ async def on_message(message):
 
     if not message.guild.id in bot._guild_prefix_cache:
         configs = await get_guild_configs(message.guild.id)
-        guild_prefix = configs.get("prefix")
+        if not configs:
+            guild_prefix = "!"
+        else:
+            guild_prefix = configs.get("prefix")
         if guild_prefix:
             guild_prefix = guild_prefix.strip().lower()
         bot._guild_prefix_cache[message.guild.id] = guild_prefix

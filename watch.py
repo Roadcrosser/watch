@@ -18,6 +18,7 @@ bot = discord.Client()
 
 bot.timestamp = 0
 bot._guild_check_queue = []
+bot._guild_prefix_cache = {}
 
 with open("config.json") as w:
     cfg = json.loads(w.read())
@@ -248,7 +249,19 @@ async def on_message(message):
         return
 
     msg = None
-    for p in prefixes: # TODO: check (also make) per-guild prefix cache
+
+    if not message.guild.id in bot._guild_prefix_cache:
+        configs = await get_guild_configs(message.guild.id)
+        guild_prefix = configs.get("prefix")
+        if guild_prefix:
+            guild_prefix = guild_prefix.strip().lower()
+        bot._guild_prefix_cache[message.guild.id] = guild_prefix
+
+    custom_prefix = [bot._guild_prefix_cache[message.guild.id]]
+    if not custom_prefix[0]:
+        custom_prefix = []
+
+    for p in prefixes + custom_prefix:
         if message.content.lower().startswith(p):
             msg = message.content[len(p):].strip()
             break
@@ -548,6 +561,8 @@ async def setup(message, args, **kwargs):
                 options = EXCLUDED.options,
                 special_roles = EXCLUDED.special_roles
             ;""", message.guild.id, args["post_channel"], args["prefix"], args["options"], 0, args["special_roles"], [message.id])
+            bot._guild_prefix_cache[message.guild.id] = args["prefix"]
+
             await message.channel.send("Your settings have been updated.")
         else:
             await message.channel.send("Process aborted.")

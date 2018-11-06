@@ -518,8 +518,29 @@ async def setup(message, args, **kwargs):
 
         embed.add_field(name="Guild Data Export", value=guild_export)
 
-        await message.channel.send("Welcome to the ⌚ setup!\nPlease go to https://sink.discord.bot/⌚ to generate an import code!\nRun this command with the Import config to set up the bot on this guild.", embed=embed, files=files)
+        ret = "Welcome to the ⌚ setup!\nPlease go to https://sink.discord.bot/⌚ to generate an import code!\nRun this command with the Import config to set up the bot on this guild."
+        if len(guild_export) <= 2000:
+            ret += "\n\nIf you are currently on a mobile device, react to this message with 📞 (`telephone_receiver`) to receive a DM with the guild data for copyable purposes."
         
+        msg = await message.channel.send(ret, embed=embed, files=files)
+
+        if len(guild_export) <= 2000:
+            def check(reaction, user):
+                return (reaction.message.id == msg.id and
+                        reaction.emoji == "📞" and
+                        user.id == message.author.id)
+
+            try:
+                reaction, user = await bot.wait_for("reaction_add", check=check)
+            except asyncio.TimeoutError:
+                return
+            
+            if reaction:
+                try:
+                    await message.author.send(guild_export)
+                except:
+                    await message.channel.send("DM failed. Please ensure your DMs are enabled.")
+    
         return True
     
     else:

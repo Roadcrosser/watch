@@ -504,6 +504,8 @@ async def setup(message, args, **kwargs):
 
         guild_export = encode(json.dumps(guild_export))
         
+        full_guild_export = guild_export
+
         if len(guild_export) > 2048:
             b = BytesIO()
             b.write(guild_export.encode("utf-8"))
@@ -524,7 +526,7 @@ async def setup(message, args, **kwargs):
         
         msg = await message.channel.send(ret, embed=embed, files=files)
 
-        if len(guild_export) <= 2000:
+        if len(full_guild_export) <= 2000:
             def check(reaction, user):
                 return (reaction.message.id == msg.id and
                         reaction.emoji == "📞" and
@@ -537,7 +539,7 @@ async def setup(message, args, **kwargs):
             
             if reaction:
                 try:
-                    await message.author.send(guild_export)
+                    await message.author.send(full_guild_export)
                 except:
                     await message.channel.send("DM failed. Please ensure your DMs are enabled.")
     

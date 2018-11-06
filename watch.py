@@ -401,7 +401,7 @@ async def reason(message, args, **kwargs):
     await bot.db.execute(f"""
     UPDATE events
     SET reason = $1,
-    actor = $2,
+    actor = $2
     WHERE guild_id = $3
     AND event_id = $4;
     """, reason, message.author.id, message.guild.id, num)

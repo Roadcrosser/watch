@@ -411,7 +411,7 @@ async def reason(message, args, **kwargs):
     if msg:
         await update_entry(msg, new_entry, Options(configs.get("options")))
     else:
-        ret += "\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it."
+        ret += f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num})"
 
     await message.channel.send(ret)
     return True    

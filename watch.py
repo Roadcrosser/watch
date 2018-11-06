@@ -553,7 +553,7 @@ async def setup(message, args, **kwargs):
             args = json.loads(decode(args))
             args["post_channel"] = int(args["channel"])
             args["special_roles"] = [int(r) for r in args["roles"]]
-            args["prefix"] = args["prefix"].strip() if args["prefix"] else None
+            args["prefix"] = args["prefix"].strip()[:32] if args["prefix"] else None
             int(args["options"])
 
             channel = message.guild.get_channel(args["post_channel"])

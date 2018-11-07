@@ -206,7 +206,7 @@ async def post_entries(entries, channel, guild_config):
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
 
-def generate_entry(event, options, offset=0, default_reason="Responsible moderator, please do `reason {} <reason>`"):
+def generate_entry(event, options, offset=0, default_reason="_Responsible moderator, please do `reason {} <reason>`_"):
     case_num = event.count + offset
     ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], case_num)
 

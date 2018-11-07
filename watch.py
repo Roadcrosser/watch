@@ -31,7 +31,7 @@ async def on_ready():
         credentials = {"user": "watchbot", "password": cfg["db_pass"], "database": "watchdata", "host": "localhost"}
         db = await asyncpg.create_pool(**credentials)
 
-        # await db.execute("CREATE TABLE IF NOT EXISTS guild_configs(guild_id bigint PRIMARY KEY, post_channel bigint, prefix text DEFAULT '!', options integer DEFAULT 0, latest_event_count integer, special_roles bigint[], recent_events bigint[]);")
+        # await db.execute("CREATE TABLE IF NOT EXISTS guild_configs(guild_id bigint PRIMARY KEY, post_channel bigint, prefix text DEFAULT '!', options integer DEFAULT 0, latest_event_count integer, special_roles bigint[], recent_events bigint[], _offset integer DEFAULT 0);")
         # await db.execute("CREATE TYPE event_t AS enum('kick', 'ban', 'unban', 'role_add', 'role_remove');")
         # await db.execute("CREATE TABLE IF NOT EXISTS events(event_id integer, guild_id bigint REFERENCES guild_configs(guild_id), event_type event_t, reason text, message_id bigint, target_id bigint, target_name text, actor bigint, role_id bigint, role_name text, PRIMARY KEY (event_id, guild_id));")
 
@@ -99,7 +99,10 @@ async def on_member_update(before, after):
 
 async def get_guild_configs(guild_id):
     ret = await bot.db.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1;", guild_id)
-    return ret if ret else {}
+    ret = dict(ret) if ret else {}
+    if "_offset" in ret:
+        ret["offset"] = ret["_offset"]
+    return ret
 
 async def check_guild_logs(guild, guild_config):
     recent_events = guild_config.get("recent_events", [])
@@ -189,7 +192,7 @@ async def post_entries(entries, channel, guild_config):
 
     ret = []
     for e in entries:
-        msg = await channel.send(generate_entry(e, options))
+        msg = await channel.send(generate_entry(e, options, guild_config.get("offset")))
         await bot.db.execute("""
         UPDATE events
         SET message_id = $1
@@ -197,15 +200,15 @@ async def post_entries(entries, channel, guild_config):
         AND event_id = $3;
         """, msg.id, channel.guild.id, e.count)
         ret += [msg]
-        # await update_entry(msg, e, options)
     
     return ret
 
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
 
-def generate_entry(event, options, default_reason="Responsible moderator, please do `reason {} <reason>`"):
-    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], event.count)
+def generate_entry(event, options, offset=0, default_reason="Responsible moderator, please do `reason {} <reason>`"):
+    case_num = event.count + offset
+    ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], case_num)
 
     name = event.target_name
     if not options.reveal_invites:
@@ -220,18 +223,19 @@ def generate_entry(event, options, default_reason="Responsible moderator, please
     if event.role_id:
         ret += "**Role**: {} ({})\n".format(event.role_name, event.role_id)
 
-    ret += "**Reason**: {}\n".format(event.reason if event.reason else default_reason.format(event.count))
+    ret += "**Reason**: {}\n".format(event.reason if event.reason else default_reason.format(case_num))
     ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
 
     ret = ret.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
     return ret
 
-async def update_entry(message, event, options=None):
-    if not options:
-        options = await get_guild_configs(message.guild.id)
-        options = Options(options)
+async def update_entry(message, event, offset=None, options=None):
+    if not (options and offset != None):
+        configs = await get_guild_configs(message.guild.id)
+        offset = configs.get("offset")
+        options = Options(configs.get("options"))
     
-    await message.edit(content=generate_entry(event, options))
+    await message.edit(content=generate_entry(event, options, offset))
 
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚"]
 
@@ -323,7 +327,7 @@ async def close(message, **kwargs):
         await bot.close()
         exit()
 
-def get_case_number(num, max_num):
+def get_case_number(num, max_num, offset=0):
     ret = max_num
 
     if num.lower() in ("i", "|"):
@@ -332,6 +336,7 @@ def get_case_number(num, max_num):
     if num.lower() != "l":
         try:
             ret = int(num)
+            ret -= offset
             if ret > max_num:
                 raise ValueError
         except:
@@ -362,8 +367,10 @@ async def reason(message, args, **kwargs):
 
     arg = args.split(None, 1)
 
+    offset = configs.get("offset")
+
     try:
-        num = get_case_number(arg[0], num)
+        num = get_case_number(arg[0], num, offset)
     except ValueError as e:
         await message.channel.send(str(e))
         return
@@ -409,9 +416,9 @@ async def reason(message, args, **kwargs):
     ret = "👌"
 
     if msg:
-        await update_entry(msg, new_entry, Options(configs.get("options")))
+        await update_entry(msg, new_entry, configs.get("offset"), Options(configs.get("options")))
     else:
-        ret += f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num})"
+        ret += f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num+offset})"
 
     await message.channel.send(ret)
     return True    
@@ -460,6 +467,15 @@ async def recall(message, args, **kwargs):
     await message.channel.send(ret)
     return True
 
+def generate_config_export(configs):
+    return encode(json.dumps({
+            "roles": [str(i) for i in configs.get("special_roles", [])],
+            "channel": str(configs.get("post_channel")) if configs.get("post_channel") else None,
+            "options": configs.get("options"),
+            "prefix": configs.get("prefix"),
+            "offset": configs.get("offset") + 1
+                }))
+
 async def setup(message, args, **kwargs):
     if not message.author.guild_permissions.manage_guild:
         await message.channel.send("You require the `MANAGE_GUILD` permission to use this command!")
@@ -478,15 +494,8 @@ async def setup(message, args, **kwargs):
 
         files = []
         if configs:
-            config_export = {
-                "roles": [str(i) for i in configs.get("special_roles", [])],
-                "channel": str(configs.get("post_channel")) if configs.get("post_channel") else None,
-                "options": configs.get("options"),
-                "prefix": configs.get("prefix")
-                }
-            
-            config_export = encode(json.dumps(config_export))
-        
+            config_export = generate_config_export(configs)
+
         if len(config_export) > 1024:
             b = BytesIO()
             b.write(config_export.encode("utf-8"))
@@ -553,17 +562,23 @@ async def setup(message, args, **kwargs):
         channel = None
         try:
             args = json.loads(decode(args))
-            args["post_channel"] = int(args["channel"])
+            args["post_channel"] = configs.get("post_channel")
             args["special_roles"] = [int(r) for r in args["roles"]]
             args["prefix"] = args["prefix"].strip()[:32] if args["prefix"] else None
             int(args["options"])
-
-            channel = message.guild.get_channel(args["post_channel"])
-            if not channel:
-                raise ValueError
+            args["offset"] = min(2147483647, int(args["offset"])) - 1
+            
+            if not configs:
+                args["post_channel"] = int(args["channel"])
+                channel = message.guild.get_channel(args["post_channel"])
+                if not channel:
+                    raise ValueError
         except:
             await message.channel.send("Invalid input!")
             return
+        
+        if configs:
+            args["offset"] = configs.get("offset")
 
         emotes = ["✅", "❎"]
         msg = await message.channel.send("Here are your imported settings! Please react with ✅ to confirm them. (You can check then again later with the `settings` command)", embed=format_settings(message.guild, args))
@@ -584,15 +599,24 @@ async def setup(message, args, **kwargs):
         if reaction.emoji == "✅":
             await bot.db.execute("""
             INSERT INTO guild_configs (
-            guild_id, post_channel, prefix, options, latest_event_count, special_roles, recent_events
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+            guild_id, post_channel, prefix, options, latest_event_count, special_roles, recent_events, _offset
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             ON CONFLICT (guild_id)
             DO UPDATE SET
-                post_channel = EXCLUDED.post_channel,
                 prefix = EXCLUDED.prefix,
                 options = EXCLUDED.options,
                 special_roles = EXCLUDED.special_roles
-            ;""", message.guild.id, args["post_channel"], args["prefix"], args["options"], 0, args["special_roles"], [message.id])
+            ;""",
+            message.guild.id,
+            args["post_channel"],
+            args["prefix"],
+            args["options"],
+            0,
+            args["special_roles"],
+            [message.id],
+            args["offset"]
+            )
+
             bot._guild_prefix_cache[message.guild.id] = args["prefix"]
 
             await message.channel.send("Your settings have been updated.")
@@ -616,6 +640,43 @@ async def settings(message, **kwargs):
     await message.channel.send(f"Settings for **{message.guild.name}**: (You can use the `setup` command to change them)", embed=format_settings(message.guild, configs))
     return True
 
+async def reset(message, **kwargs):
+    if is_mod(message.author):
+        if message.author.id != message.guild.owner.id:
+            await message.channel.send("Only the server owner can run this command!")
+            return
+
+    configs = await get_guild_configs(message.guild.id)
+    if not configs:
+        await message.channel.send("You have nothing to reset.")
+        return
+
+    await message.channel.send("**!! WARNING !!**\nDANGER ZONE\n**!! WARNING !!**\n\nThis command will delete all bot configs and events related to this guild. All already-logged messages will be dissociated and uneditable.\n\n**Are you sure you want to do this?**\nEnter `Yes, please wipe everything` to confirm.")
+    
+    def check(m):
+        return (m.author.id == message.author.id and
+                m.channel.id == message.channel.id)
+
+    try:
+        msg = await bot.wait_for("message", check=check)
+    except asyncio.TimeoutError:
+        return
+    
+    if (not msg.content) or msg.content.lower() != "yes, please wipe everything":
+        await message.channel.send("Reset aborted.")
+        return
+    
+    channel = message.guild.get_channel(configs.get("post_channel"))
+    if channel and channel.permissions_for(message.guild.me):
+        await channel.send("**==================**\nGood night, sweet prince\n**==================**")
+    
+    await bot.db.execute("DELETE FROM events WHERE guild_id = $1;", message.guild.id)
+    await bot.db.execute("DELETE FROM guild_configs WHERE guild_id = $1;", message.guild.id)
+
+    await message.channel.send(f"Data deleted. For postierity, your guild settings were:\n```\n{generate_config_export(configs)}\n```")
+
+    return True
+
 def format_settings(guild, configs):
     embed = discord.Embed(color=guild.me.color)
     embed.add_field(name="Channel", value=f"<#{configs.get('post_channel')}>")
@@ -633,6 +694,7 @@ def format_settings(guild, configs):
 
     embed.add_field(name="Options", value=option_text)
     embed.add_field(name="Custom Prefix", value=configs.get("prefix"))
+    embed.add_field(name="Count Offset", value=configs.get("offset") + 1)
     return embed
 
 
@@ -648,6 +710,7 @@ cmds = {
     "recall": recall,
     "setup": setup,
     "settings": settings,
+    "reset": reset,
     "invite": invite,
 }
 

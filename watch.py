@@ -649,7 +649,7 @@ async def _reset(message, configs):
         await message.channel.send("Reset aborted.")
         return
     
-    channel = message.guild.get_channel(configs.get("post_channel"))
+    channel = message.guild.get_channel(configs.post_channel)
     if channel and channel.permissions_for(message.guild.me):
         await channel.send("**==================**\nGood night, sweet prince\n**==================**")
     

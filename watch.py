@@ -547,10 +547,11 @@ async def setup(message, args, **kwargs):
         channel = None
         try:
             args = json.loads(decode(args))
+            args["guild_id"] = message.guild.id
             args["post_channel"] = configs.post_channel
             args["special_roles"] = [int(r) for r in args["roles"]]
             args["prefix"] = args["prefix"].strip()[:32] if args["prefix"] else None
-            int(args["options"])
+            args["options"] = int(args["options"])
             offset = 0 if not args["offset"] else args["offset"]
             args["_offset"] = max(0, min(2147483647, int(offset)) - 1)
             

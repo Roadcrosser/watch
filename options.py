@@ -4,6 +4,8 @@ class Options():
     # 2 - ping the target on mod events
 
     def __init__(self, value):
+        if value == None:
+            value = 0
         self.reveal_invites = value & 0b01 == 0b01
         self.ping_target = value & 0b10 == 0b10
     

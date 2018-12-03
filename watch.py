@@ -232,7 +232,7 @@ async def update_entry(message, event, configs=None):
     
     await message.edit(content=generate_entry(event, configs))
 
-prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚"]
+prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚", "\⌚"]
 
 @bot.event
 async def on_message(message):

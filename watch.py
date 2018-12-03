@@ -12,6 +12,7 @@ import util
 from emoji import clean_emoji
 from event import Event
 from options import Options
+from configs import Configs
 from util import encode, decode
 
 bot = discord.Client()
@@ -33,7 +34,7 @@ async def on_ready():
 
         # await db.execute("CREATE TABLE IF NOT EXISTS guild_configs(guild_id bigint PRIMARY KEY, post_channel bigint, prefix text DEFAULT '!', options integer DEFAULT 0, latest_event_count integer, special_roles bigint[], recent_events bigint[], _offset integer DEFAULT 0);")
         # await db.execute("CREATE TYPE event_t AS enum('kick', 'ban', 'unban', 'role_add', 'role_remove');")
-        # await db.execute("CREATE TABLE IF NOT EXISTS events(event_id integer, guild_id bigint REFERENCES guild_configs(guild_id), event_type event_t, reason text, message_id bigint, target_id bigint, target_name text, actor bigint, role_id bigint, role_name text, PRIMARY KEY (event_id, guild_id));")
+        # await db.execute("CREATE TABLE IF NOT EXISTS events(event_id integer, guild_id bigint REFERENCES guild_configs(guild_id), event_type event_t, reason text, timestamp TIMESTAMP, message_id bigint, target_id bigint, target_name text, actor bigint, role_id bigint, role_name text, PRIMARY KEY (event_id, guild_id));")
 
         # Look like CREATE TYPE IF NOT EXISTS isn't a thing so just run those in the db before starting the bot ever
 
@@ -65,10 +66,10 @@ async def on_run_check_loop():
                 continue
             
             guild_config = await get_guild_configs(guild.id)
-            if not guild_config:
+            if not guild_config.guild_id:
                 continue
             
-            channel = guild_config.get("post_channel", 0)
+            channel = guild_config.post_channel
             channel = guild.get_channel(channel)
 
             if not channel or not channel.permissions_for(guild.me).send_messages:
@@ -99,10 +100,8 @@ async def on_member_update(before, after):
 
 async def get_guild_configs(guild_id):
     ret = await bot.db.fetchrow("SELECT * FROM guild_configs WHERE guild_id = $1;", guild_id)
-    ret = dict(ret) if ret else {}
-    if "_offset" in ret:
-        ret["offset"] = ret["_offset"]
-    return ret
+    ret = ret if ret else {}
+    return Configs.from_row(ret)
 
 async def check_guild_logs(guild, guild_config):
     recent_events = guild_config.get("recent_events", [])
@@ -148,17 +147,17 @@ async def check_guild_logs(guild, guild_config):
                     if r.id in special_roles:
                         event_type = "role_remove"
                         role = r
-                        events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, role.id, role.name)]
+                        events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, e.created_at, role.id, role.name)]
 
                 for r in after:
                     if r.id in special_roles:
                         event_type = "role_add"
                         role = r
-                        events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, role.id, role.name)]
+                        events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, e.created_at, role.id, role.name)]
 
                 continue
 
-            events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, None, None)]
+            events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, e.created_at, None, None)]
             continue
 
     events = events [::-1]
@@ -174,9 +173,9 @@ async def check_guild_logs(guild, guild_config):
                 e.set_count(latest_event_count)
 
                 await conn.execute("""INSERT INTO events(
-                    guild_id, event_type, target_id, target_name, actor, reason, role_id, role_name, event_id
+                    guild_id, event_type, target_id, target_name, actor, reason, timestamp, role_id, role_name, event_id
                     ) VALUES (
-                    $1, $2, $3, $4, $5, $6, $7, $8, $9);""", *e.db_insert())
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10);""", *e.db_insert())
                     
             await conn.execute("""
             UPDATE guild_configs
@@ -188,11 +187,9 @@ async def check_guild_logs(guild, guild_config):
         return events
 
 async def post_entries(entries, channel, guild_config):
-    options = Options(guild_config.get("options"))
-
     ret = []
     for e in entries:
-        msg = await channel.send(generate_entry(e, options, guild_config.get("offset")))
+        msg = await channel.send(generate_entry(e, guild_config))
         await bot.db.execute("""
         UPDATE events
         SET message_id = $1
@@ -206,17 +203,17 @@ async def post_entries(entries, channel, guild_config):
 
 invite_reg = re.compile("((?:https?:\/\/)?discord(?:\.gg|app\.com\/invite)\/(?:#\/)?)([a-zA-Z0-9-]*)")
 
-def generate_entry(event, options, offset=0, default_reason="_Responsible moderator, please do `reason {} <reason>`_"):
-    case_num = event.count + offset
+def generate_entry(event, config, default_reason="_Responsible moderator, please do `reason {} <reason>`_"):
+    case_num = event.count + config.offset
     ret = "**{}** | Case {}\n".format(event_t_display[event_t_str.index(event.event_type)], case_num)
 
     name = event.target_name
-    if not options.reveal_invites:
+    if not config.options.reveal_invites:
         name = invite_reg.sub("\g<1>[INVITE REDACTED]", name)
     name = clean_emoji(name)
 
     ret += "**User**: {} ({})".format(name, event.target_id)
-    if options.ping_target:
+    if config.options.ping_target:
         ret += " (<@{}>)".format(event.target_id)
 
     ret += "\n"
@@ -229,18 +226,13 @@ def generate_entry(event, options, offset=0, default_reason="_Responsible modera
     ret = ret.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
     return ret
 
-async def update_entry(message, event, offset=None, options=None):
-    if not (options and offset != None):
+async def update_entry(message, event, configs=None):
+    if not configs:
         configs = await get_guild_configs(message.guild.id)
-        offset = configs.get("offset")
-        options = Options(configs.get("options"))
     
-    await message.edit(content=generate_entry(event, options, offset))
+    await message.edit(content=generate_entry(event, configs))
 
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚"]
-
-def event_from_row(row, actor=None, reason=None):
-    return Event(row.get("guild_id"), row.get("event_type"), row.get("target_id"), row.get("target_name"), row.get("actor") if not actor else actor, row.get("reason") if not reason else reason, row.get("role_id"), row.get("role_name"), row.get("event_id"))
 
 @bot.event
 async def on_message(message):
@@ -256,10 +248,10 @@ async def on_message(message):
 
     if not message.guild.id in bot._guild_prefix_cache:
         configs = await get_guild_configs(message.guild.id)
-        if not configs:
+        if not configs.guild_id:
             guild_prefix = "!"
         else:
-            guild_prefix = configs.get("prefix")
+            guild_prefix = configs.prefix
         if guild_prefix:
             guild_prefix = guild_prefix.strip().lower()
         bot._guild_prefix_cache[message.guild.id] = guild_prefix
@@ -333,14 +325,16 @@ def get_case_number(num, max_num, offset=0):
     if num.lower() in ("i", "|"):
         raise ValueError("You realise that `L` is supposed to stand for `latest`, right?")
 
-    if num.lower() != "l":
-        try:
+    try:
+        if not num.lower() in ["l", "latest"]:
             ret = int(num)
             ret -= offset
-            if ret > max_num:
-                raise ValueError
-        except:
-            raise ValueError("Invalid case number.")
+        if ret > max_num:
+            raise ValueError
+        if ret <= 0:
+            raise ValueError
+    except:
+        raise ValueError("Invalid case number.")
 
     return ret
 
@@ -357,17 +351,17 @@ async def reason(message, args, **kwargs):
         return
 
     configs = await get_guild_configs(message.guild.id)
-    channel = message.guild.get_channel(configs.get("post_channel", 0))
+    channel = message.guild.get_channel(configs.post_channel)
 
-    if not (configs and channel and channel.permissions_for(message.guild.me).send_messages):
+    if not (configs.guild_id and channel and channel.permissions_for(message.guild.me).send_messages):
         await message.channel.send("This guild has not been (or is improperly) set up. Please use the `setup` command to get started.")
         return
 
-    num = configs.get("latest_event_count")
+    num = configs.latest_event_count
 
     arg = args.split(None, 1)
 
-    offset = configs.get("offset")
+    offset = configs.offset
 
     try:
         num = get_case_number(arg[0], num, offset)
@@ -399,7 +393,7 @@ async def reason(message, args, **kwargs):
         await message.channel.send("You have insufficient permissions to update that reason.")
         return
 
-    new_entry = event_from_row(event, message.author, reason)
+    new_entry = Event.from_row(event, message.author, reason)
 
     msg = event.get("message_id")
     if msg:
@@ -416,7 +410,7 @@ async def reason(message, args, **kwargs):
     ret = "👌"
 
     if msg:
-        await update_entry(msg, new_entry, configs.get("offset"), Options(configs.get("options")))
+        await update_entry(msg, new_entry, configs)
     else:
         ret += f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num+offset})"
 
@@ -428,15 +422,15 @@ async def recall(message, args, **kwargs):
         return
 
     configs = await get_guild_configs(message.guild.id)
-    channel = message.guild.get_channel(configs.get("post_channel", 0))
+    channel = message.guild.get_channel(configs.post_channel)
 
-    if not (configs and channel and channel.permissions_for(message.guild.me).send_messages):
+    if not (configs.guild_id and channel and channel.permissions_for(message.guild.me).send_messages):
         return
 
-    num = configs.get("latest_event_count")
+    num = configs.latest_event_count
 
     try:
-        num = get_case_number(args, num)
+        num = get_case_number(args, num, configs.offset)
     except ValueError as e:
         await message.channel.send(str(e))
         return
@@ -457,7 +451,7 @@ async def recall(message, args, **kwargs):
         if is_mod(message.author):
             ret = "This entry has been reinstated.\n"
             actor = await util.get_member(bot, event.get("actor"))
-            new_entry = event_from_row(event, actor)
+            new_entry = Event.from_row(event, actor)
             msg = await post_entries([new_entry], channel, configs)
             msg = msg[0]
 
@@ -466,15 +460,6 @@ async def recall(message, args, **kwargs):
 
     await message.channel.send(ret)
     return True
-
-def generate_config_export(configs):
-    return encode(json.dumps({
-            "roles": [str(i) for i in configs.get("special_roles", [])],
-            "channel": str(configs.get("post_channel")) if configs.get("post_channel") else None,
-            "options": configs.get("options"),
-            "prefix": configs.get("prefix"),
-            "offset": configs.get("offset") + 1
-                }))
 
 async def setup(message, args, **kwargs):
     if not message.author.guild_permissions.manage_guild:
@@ -494,7 +479,7 @@ async def setup(message, args, **kwargs):
 
         files = []
         if configs:
-            config_export = generate_config_export(configs)
+            config_export = configs.export()
 
         if len(config_export) > 1024:
             b = BytesIO()
@@ -530,7 +515,7 @@ async def setup(message, args, **kwargs):
         embed.add_field(name="Guild Data Export", value=guild_export)
 
         ret = "Welcome to the ⌚ setup!\nPlease go to https://sink.discord.bot/⌚ to generate an import code!\nRun this command with the Import config to set up the bot on this guild."
-        if len(guild_export) <= 2000:
+        if len(full_guild_export) <= 2000:
             ret += "\n\nIf you are currently on a mobile device, react to this message with 📞 (`telephone_receiver`) to receive a DM with the guild data for copyable purposes."
         
         msg = await message.channel.send(ret, embed=embed, files=files)
@@ -562,13 +547,14 @@ async def setup(message, args, **kwargs):
         channel = None
         try:
             args = json.loads(decode(args))
-            args["post_channel"] = configs.get("post_channel")
+            args["post_channel"] = configs.post_channel
             args["special_roles"] = [int(r) for r in args["roles"]]
             args["prefix"] = args["prefix"].strip()[:32] if args["prefix"] else None
             int(args["options"])
-            args["offset"] = min(2147483647, int(args["offset"])) - 1
+            offset = 0 if not args["offset"] else args["offset"]
+            args["_offset"] = max(0, min(2147483647, int(offset)) - 1)
             
-            if not configs:
+            if not configs.guild_id:
                 args["post_channel"] = int(args["channel"])
                 channel = message.guild.get_channel(args["post_channel"])
                 if not channel:
@@ -578,10 +564,13 @@ async def setup(message, args, **kwargs):
             return
         
         if configs:
-            args["offset"] = configs.get("offset")
+            args["offset"] = configs.offset
 
         emotes = ["✅", "❎"]
-        msg = await message.channel.send("Here are your imported settings! Please react with ✅ to confirm them. (You can check then again later with the `settings` command)", embed=format_settings(message.guild, args))
+
+        args = Configs.from_row(args)
+
+        msg = await message.channel.send("Here are your imported settings! Please react with ✅ to confirm them. (You can check then again later with the `settings` command)", embed=args.as_embed(message.guild))
 
         for e in emotes:
             await msg.add_reaction(e)
@@ -606,18 +595,9 @@ async def setup(message, args, **kwargs):
                 prefix = EXCLUDED.prefix,
                 options = EXCLUDED.options,
                 special_roles = EXCLUDED.special_roles
-            ;""",
-            message.guild.id,
-            args["post_channel"],
-            args["prefix"],
-            args["options"],
-            0,
-            args["special_roles"],
-            [message.id],
-            args["offset"]
-            )
+            ;""", *args.db_insert())
 
-            bot._guild_prefix_cache[message.guild.id] = args["prefix"]
+            bot._guild_prefix_cache[message.guild.id] = args.prefix
 
             await message.channel.send("Your settings have been updated.")
         else:
@@ -637,7 +617,7 @@ async def settings(message, **kwargs):
         await message.channel.send("I require the `EMBED_LINKS` permission to use this command!")
         return
     
-    await message.channel.send(f"Settings for **{message.guild.name}**: (You can use the `setup` command to change them)", embed=format_settings(message.guild, configs))
+    await message.channel.send(f"Settings for **{message.guild.name}**: (You can use the `setup` command to change them)", embed=configs.as_embed(message.guild))
     return True
 
 async def reset(message, **kwargs):
@@ -651,6 +631,9 @@ async def reset(message, **kwargs):
         await message.channel.send("You have nothing to reset.")
         return
 
+    return await _reset(message, configs)
+
+async def _reset(message, configs):
     await message.channel.send("**!! WARNING !!**\nDANGER ZONE\n**!! WARNING !!**\n\nThis command will delete all bot configs and events related to this guild. All already-logged messages will be dissociated and uneditable.\n\n**Are you sure you want to do this?**\nEnter `Yes, please wipe everything` to confirm.")
     
     def check(m):
@@ -673,29 +656,9 @@ async def reset(message, **kwargs):
     await bot.db.execute("DELETE FROM events WHERE guild_id = $1;", message.guild.id)
     await bot.db.execute("DELETE FROM guild_configs WHERE guild_id = $1;", message.guild.id)
 
-    await message.channel.send(f"Data deleted. For postierity, your guild settings were:\n```\n{generate_config_export(configs)}\n```")
+    await message.channel.send(f"Data deleted. For postierity, your guild settings were:\n```\n{configs.export()}\n```")
 
     return True
-
-def format_settings(guild, configs):
-    embed = discord.Embed(color=guild.me.color)
-    embed.add_field(name="Channel", value=f"<#{configs.get('post_channel')}>")
-
-    guild_roles = {i.id for i in guild.roles}
-    roles = [f"<@&{i}>" for i in configs.get("special_roles") if i in guild_roles]
-    roles = "\n".join(roles) if roles else "None"
-
-    embed.add_field(name="Roles", value=roles)
-
-    options = Options(configs.get("options"))
-
-    option_text = f"{'✅' if options.reveal_invites else '❎'} **Reveal Invites**"
-    option_text += f"\n{'✅' if options.ping_target else '❎'} **Ping Target**"
-
-    embed.add_field(name="Options", value=option_text)
-    embed.add_field(name="Custom Prefix", value=configs.get("prefix"))
-    embed.add_field(name="Count Offset", value=configs.get("offset") + 1)
-    return embed
 
 
 async def invite(message, **kwargs):

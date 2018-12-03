@@ -104,12 +104,12 @@ async def get_guild_configs(guild_id):
     return Configs.from_row(ret)
 
 async def check_guild_logs(guild, guild_config):
-    recent_events = guild_config.get("recent_events", [])
+    recent_events = guild_config.recent_events
     if not recent_events:
         recent_events = [discord.utils.time_snowflake(datetime.datetime.utcnow())]
 
     events = []
-    special_roles = guild_config.get("special_roles", [])
+    special_roles = guild_config.roles
 
     break_signal = False
     oldest = None
@@ -166,7 +166,7 @@ async def check_guild_logs(guild, guild_config):
         async with conn.transaction():
             await conn.execute("SELECT FROM guild_configs WHERE guild_id = $1 FOR UPDATE;", guild.id) # That's how you're supposed to lock it right?
             
-            latest_event_count = guild_config.get("latest_event_count")
+            latest_event_count = guild_config.latest_event_count
 
             for e in events:
                 latest_event_count += 1
@@ -189,6 +189,7 @@ async def check_guild_logs(guild, guild_config):
 async def post_entries(entries, channel, guild_config):
     ret = []
     for e in entries:
+        print(f"Posting case {e.count} to {channel.guild.id}")
         msg = await channel.send(generate_entry(e, guild_config))
         await bot.db.execute("""
         UPDATE events

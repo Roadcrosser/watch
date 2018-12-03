@@ -4,7 +4,7 @@ import json
 import discord
 
 class Configs():
-    def __init__(self, guild_id, post_channel, options, prefix, offset, roles, latest_event_count):
+    def __init__(self, guild_id, post_channel, options, prefix, offset, roles, latest_event_count, recent_events):
         self.guild_id = guild_id
         self.post_channel = post_channel
         self.options = options
@@ -12,10 +12,11 @@ class Configs():
         self.offset = offset
         self.roles = roles
         self.latest_event_count = latest_event_count
+        self.recent_events = recent_events
 
     @classmethod
     def from_row(cls, row):
-        return cls(row.get("guild_id"), row.get("post_channel"), Options(row.get("options")), row.get("prefix"), row.get("_offset"), row.get("special_roles", []), row.get("latest_event_count"))
+        return cls(row.get("guild_id"), row.get("post_channel"), Options(row.get("options")), row.get("prefix"), row.get("_offset"), row.get("special_roles", []), row.get("latest_event_count"), row.get("recent_events", []))
 
     def db_insert(self):
         return (self.guild_id, self.post_channel, self.prefix, self.options.as_num(), 0, self.roles, [], self.offset)

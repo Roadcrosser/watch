@@ -231,6 +231,7 @@ async def update_entry(message, event, configs=None):
     if not configs:
         configs = await get_guild_configs(message.guild.id)
     
+    print(f"Updating case {event.count} in {message.guild.id}")
     await message.edit(content=generate_entry(event, configs))
 
 prefixes = [f"<@{cfg['bot_id']}>", f"<@!{cfg['bot_id']}>", "w!", "watch!", "⌚", "\⌚"]
@@ -320,22 +321,53 @@ async def close(message, **kwargs):
         await bot.close()
         exit()
 
-def get_case_number(num, max_num, offset=0):
-    ret = max_num
+def get_case_number(num, max_num, offset=0, allow_case_range=False):
+    ret = []
 
-    if num.lower() in ("i", "|"):
-        raise ValueError("You realise that `L` is supposed to stand for `latest`, right?")
+    num = str(num).lower()
+    rng = [num]
 
-    try:
-        if not num.lower() in ["l", "latest"]:
-            ret = int(num)
-            ret -= offset
-        if ret > max_num:
-            raise ValueError
-        if ret <= 0:
-            raise ValueError
-    except:
-        raise ValueError("Invalid case number.")
+    if allow_case_range:
+        rng = num.split("..")
+        if len(rng) > 2:
+            raise ValueError("Invalid case number")
+
+    for end in rng:
+
+        if end == "":
+            end = "l"
+
+        pc = end.split("~")
+
+        if pc[0] in ("i", "|"):
+            raise ValueError("You realise that `L` is supposed to stand for `latest`, right?")
+
+        if len(pc) > 2 or (len(pc) == 2 and not pc[0] in ("l", "latest")):
+            raise ValueError("Invalid case number")
+
+        add = max_num
+        try:
+            if not pc[0] in ("l", "latest"):
+                add = int(pc[0])
+                add -= offset
+            
+            if len(pc) == 2:
+                add -= int(pc[1])
+
+        except:
+            raise ValueError("Invalid case number.")
+
+        if add > max_num:
+            raise ValueError("Invalid case number.")
+        if add <= 0:
+            raise ValueError("Invalid case number.")
+        
+        ret += [add]
+
+    if not allow_case_range:
+        ret = ret[0]
+    else:
+        ret = sorted(ret)
 
     return ret
 
@@ -365,55 +397,84 @@ async def reason(message, args, **kwargs):
     offset = configs.offset
 
     try:
-        num = get_case_number(arg[0], num, offset)
+        num = get_case_number(arg[0], num, offset, allow_case_range=True)
     except ValueError as e:
         await message.channel.send(str(e))
         return
 
-    
+
     if len(arg) < 2:
         await message.channel.send("No reason was given!")
         return
 
     reason = arg[1]
 
-    event = await bot.db.fetchrow("SELECT * FROM events WHERE guild_id = $1 AND event_id = $2;", message.guild.id, num)
-    if not event:
+    events = await bot.db.fetch("SELECT * FROM events WHERE guild_id = $1 AND event_id BETWEEN $2 AND $3;", message.guild.id, num[0], num[-1])
+    if not events:
         await message.channel.send("!!! That event doesn't exist. You shouldn't be seeing this. Please contact the bot maintainer.")
         return
 
-    event_perms = []
+    events = [Event.from_row(e, message.author, reason) for e in events]
+
+    event_perms = set()
     if perms.ban_members:
-        event_perms += ["ban", "unban"]
+        event_perms.update({"ban", "unban"})
     if perms.kick_members:
-        event_perms += ["kick"]
+        event_perms.update({"kick"})
     if perms.manage_roles:
-        event_perms += ["role_add", "role_remove"]
+        event_perms.update({"role_add", "role_remove"})
 
-    if not event.get("event_type") in event_perms:
-        await message.channel.send("You have insufficient permissions to update that reason.")
-        return
+    for e in events:
+        if not e.event_type in event_perms:
+            msg = "You have insufficient permissions to update that reason."
+            if len(events) > 1:
+                msg = f"You have insufficient permissions to update at least one of those reasons. (Check halted at case {e.count+offset})"
+            await message.channel.send(msg)
+            return
 
-    new_entry = Event.from_row(event, message.author, reason)
+    if len(events) > 1:
+        await message.channel.send(f"This will update cases **{num[0]+offset}** to **{num[-1]+offset}**.\nAre you sure you want to update **{len(events)}** cases? (Say `{len(events)}` to confirm)")
 
-    msg = event.get("message_id")
-    if msg:
-        msg = await util.get_message(bot, channel, msg)
+        def check(m):
+            return (m.author.id == message.author.id and
+                    m.channel.id == message.channel.id)
+
+        try:
+            msg = await bot.wait_for("message", check=check)
+        except asyncio.TimeoutError:
+            return
+        
+        if (not msg.content) or msg.content.lower() != str(len(events)):
+            await message.channel.send("Reason aborted.")
+            return
+
+    msgs = []
+    for e in events:
+        msg = e.message_id
+        if msg:
+            msg = await util.get_message(bot, channel, msg)
+            if msg:
+                msgs += [(msg, e)]
     
     await bot.db.execute(f"""
     UPDATE events
     SET reason = $1,
     actor = $2
     WHERE guild_id = $3
-    AND event_id = $4;
-    """, reason, message.author.id, message.guild.id, num)
+    AND event_id BETWEEN $4 AND $5;
+    """, reason, message.author.id, message.guild.id, num[0], num[-1])
 
     ret = "👌"
 
-    if msg:
-        await update_entry(msg, new_entry, configs)
-    else:
-        ret += f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num+offset})"
+    async with message.channel.typing():
+        for m in msgs:
+            await update_entry(m[0], m[1], configs)
+    
+    if len(events) != len(msgs):
+        msg = f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num[0]+offset})"
+        if len(events) > 1:
+            msg = f"\nUnfortunately, at least one message tied to these cases cannot be found. Please `recall` the missing cases to resend it. (Check cases {num[0]+offset} to {num[-1]+offset})"
+        ret += msg
 
     await message.channel.send(ret)
     return True    

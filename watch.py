@@ -40,6 +40,7 @@ async def on_ready():
 
         bot.db = db
 
+        bot._guild_check_queue = list(bot.guilds)
         bot.dispatch("run_check_loop")
         bot.timestamp = datetime.datetime.utcnow().timestamp()
 

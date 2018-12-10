@@ -27,7 +27,7 @@ class Configs():
                 "channel": str(self.post_channel) if self.post_channel else None,
                 "options": self.options.as_num(),
                 "prefix": self.prefix,
-                "offset": self.offset + 1
+                "offset": int(self.offset) + 1
                     }))
     
     def as_embed(self, guild):

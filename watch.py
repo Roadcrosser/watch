@@ -616,7 +616,7 @@ async def setup(message, args, **kwargs):
             args["prefix"] = args["prefix"].strip()[:32] if args["prefix"] else None
             args["options"] = int(args["options"])
             offset = 0 if not args["offset"] else args["offset"]
-            args["_offset"] = max(0, min(2147483647, offset) - 1)
+            args["_offset"] = max(0, min(2147483647, int(offset)) - 1)
             
             if not configs.guild_id:
                 args["post_channel"] = int(args["channel"])

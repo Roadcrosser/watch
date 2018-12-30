@@ -13,11 +13,14 @@ class Event():
         self.message_id = message_id
     
     @classmethod
-    def from_row(cls, row, actor, reason=None):
+    def from_row(cls, row, actor=None, reason=None):
         return cls(row.get("guild_id"), row.get("event_type"), row.get("target_id"), row.get("target_name"), row.get("actor") if not actor else actor, row.get("reason") if not reason else reason, row.get("timestamp"), row.get("role_id"), row.get("role_name"), row.get("event_id"), row.get("message_id"))
     
+    def set_actor(self, actor):
+        self.actor = actor
+        
     def set_count(self, count):
         self.count = count
 
     def db_insert(self):
-        return (self.guild_id, self.event_type, self.target_id, self.target_name, self.actor.id, self.reason, self.timestamp, self.role_id, self.role_name, self.count)
+        return (self.guild_id, self.event_type, self.target_id, self.target_name, self.actor if type(self.actor) == int else self.actor.id, self.reason, self.timestamp, self.role_id, self.role_name, self.count)

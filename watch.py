@@ -223,7 +223,11 @@ def generate_entry(event, config, default_reason="_Responsible moderator, please
         ret += "**Role**: {} ({})\n".format(event.role_name, event.role_id)
 
     ret += "**Reason**: {}\n".format(event.reason if event.reason else default_reason.format(case_num))
-    ret += "**Responsible moderator**: {}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
+    ret += "**Responsible moderator**: "
+    if type(event.actor) == int:
+        ret += f"{event.actor}"
+    else:
+        ret += "{}#{}".format(clean_emoji(event.actor.name), event.actor.discriminator)
 
     ret = ret.replace("@everyone", "@\u200beveryone").replace("@here", "@\u200bhere")
     return ret
@@ -531,25 +535,33 @@ async def recall(message, args, **kwargs):
         await message.channel.send("!!! That event doesn't exist. You shouldn't be seeing this. Please contact the bot maintainer.")
         return
     
+    new_entry = Event.from_row(event)
+
     msg = event.get("message_id")
     if msg:
         msg = await util.get_message(bot, channel, msg)
 
-    ret = ""
+    ret = None
 
     if not msg:
         ret = "This entry has been deleted. Please ask a mod to run this command to reinstate it."
         if is_mod(message.author):
-            ret = "This entry has been reinstated.\n"
+            ret = "This entry has been reinstated."
             actor = await util.get_member(bot, event.get("actor"))
-            new_entry = Event.from_row(event, actor)
+            new_entry.set_actor(actor)
             msg = await post_entries([new_entry], channel, configs)
             msg = msg[0]
 
     if msg:
-        ret += f"{util.message_link(msg)}\n\n{msg.content}"
-
-    await message.channel.send(ret)
+        embed = discord.Embed(
+            title=ret,
+            color=message.guild.me.color if message.guild.me.color else discord.Color.default,
+            description="\n".join([e if i != 0 else " | ".join([v if u != e.count(" | ") else f"[{v}]({util.message_link(msg)})" for u, v in enumerate(e.split(" | "))]) for i, e in enumerate(msg.content.split("\n"))]), # this is so bad aaaaaaaaaaa
+            timestamp=new_entry.timestamp
+            )
+        await message.channel.send(embed=embed)
+    else:
+        await message.channel.send(ret)
     return True
 
 async def setup(message, args, **kwargs):

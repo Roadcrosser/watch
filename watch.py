@@ -5,6 +5,7 @@ import random
 import asyncpg
 import json
 import datetime
+import inspect
 import re
 import json
 from io import BytesIO
@@ -321,24 +322,27 @@ async def evaluate(message, args, **kwargs):
 async def sudo(message, args, **kwargs):
     if message.author.id == 116138050710536192:
         sudo_funcs = {
-            "reset": lambda: _reset(message, None),
-            "forcecheckall": lambda: bot._guild_check_queue.extend(bot.guilds),
-            "forcecheckthis": lambda: bot._guild_check_queue.append(message.guild)
+            "reset": (_reset, (message, None)),
+            "forcecheckall": (bot._guild_check_queue.extend, (bot.guilds,)),
+            "forcecheckthis": (bot._guild_check_queue.append, (message.guild,))
         }
         if args:
             a = args.split(" ", 1)
             cmd = a[0].lower()
-            arg = a[1]
+            arg = a[1] if len(a) > 1 else None
             if cmd in sudo_funcs:
                 try:
-                    ret = sudo_funcs[cmd]()
+                    if inspect.iscoroutinefunction(sudo_funcs[cmd][0]):
+                        ret = await sudo_funcs[cmd][0](*sudo_funcs[cmd][1])
+                    else:
+                        ret = sudo_funcs[cmd][0](*sudo_funcs[cmd][1])
                 except Exception as e:
                     ret = str(e)
 
                 if ret == None:
                     ret = "no u"
                 
-                await message.channel.send(f"```\n{e}\n```")
+                await message.channel.send(f"```\n{ret}\n```")
                 return True
                 
         else:

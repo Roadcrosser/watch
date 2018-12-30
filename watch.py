@@ -541,7 +541,7 @@ async def setup(message, args, **kwargs):
         config_export = "None generated."
 
         files = []
-        if configs:
+        if configs.guild_id:
             config_export = configs.export()
 
         if len(config_export) > 1024:

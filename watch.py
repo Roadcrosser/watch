@@ -314,6 +314,34 @@ async def evaluate(message, args, **kwargs):
                 await message.channel.send("```\n" + str(e) + "\n```")
         return True
 
+async def sudo(message, args, **kwargs):
+    if message.author.id == 116138050710536192:
+        sudo_funcs = {
+            "reset": lambda: _reset(message, None),
+            "forcecheckall": lambda: bot._guild_check_queue.extend(bot.guilds),
+            "forcecheckthis": lambda: bot._guild_check_queue.append(message.guild)
+        }
+        if args:
+            a = args.split(" ", 1)
+            cmd = a[0].lower()
+            arg = a[1]
+            if cmd in sudo_funcs:
+                try:
+                    ret = sudo_funcs[cmd]()
+                except Exception as e:
+                    ret = str(e)
+
+                if ret == None:
+                    ret = "no u"
+                
+                await message.channel.send(f"```\n{e}\n```")
+                return True
+                
+        else:
+            await message.channel.send(f"All sudo commands:\n```\n{', '.join(sudo_funcs.keys())}\n```")
+            return True
+
+
 async def close(message, **kwargs):
     if message.author.id == 116138050710536192:
         msg = await message.channel.send("Shutting down...")
@@ -691,13 +719,17 @@ async def reset(message, **kwargs):
             return
 
     configs = await get_guild_configs(message.guild.id)
-    if not configs:
+    if not configs.guild_id:
         await message.channel.send("You have nothing to reset.")
         return
 
     return await _reset(message, configs)
 
 async def _reset(message, configs):
+
+    if not configs:
+        configs = await get_guild_configs(message.guild.id)
+
     await message.channel.send("**!! WARNING !!**\nDANGER ZONE\n**!! WARNING !!**\n\nThis command will delete all bot configs and events related to this guild. All already-logged messages will be dissociated and uneditable.\n\n**Are you sure you want to do this?**\nEnter `Yes, please wipe everything` to confirm.")
     
     def check(m):
@@ -732,6 +764,7 @@ async def invite(message, **kwargs):
 cmds = {
     "time": time,
     "eval": evaluate,
+    "sudo": sudo,
     "quit": close,
     "reason": reason,
     "recall": recall,

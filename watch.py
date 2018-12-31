@@ -560,7 +560,7 @@ async def recall(message, args, **kwargs):
         embed = discord.Embed(
             title=ret,
             color=message.guild.me.color if message.guild.me.color else discord.Color.default,
-            description="\n".join([e if i != 0 else " | ".join([v if u != e.count(" | ") else f"[{v}]({util.message_link(msg)})" for u, v in enumerate(e.split(" | "))]) for i, e in enumerate(msg.content.split("\n"))]), # this is so bad aaaaaaaaaaa
+            description="\n".join([e if i != 0 else " | ".join([v if u != e.count(" | ") else f"[{v}]({msg.jump_url})" for u, v in enumerate(e.split(" | "))]) for i, e in enumerate(msg.content.split("\n"))]), # this is so bad aaaaaaaaaaa
             timestamp=new_entry.timestamp
             )
         await message.channel.send(embed=embed)

@@ -36,12 +36,6 @@ async def get_member(bot, member_id):
 
     return user
 
-def message_link(message=None, guild_id=None, channel_id=None, message_id=None):
-    args = [guild_id, channel_id, message_id]
-    if message:
-        args = [message.guild.id, message.channel.id, message.id]
-    return "https://discordapp.com/channels/{}/{}/{}".format(*args)
-
 def encode(text):
     return base64.b64encode(codecs.encode(text.encode("utf-8"), "zlib")).decode()
 

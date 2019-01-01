@@ -622,15 +622,15 @@ async def setup(message, args, **kwargs):
         embed.add_field(name="Guild Data Export", value=guild_export)
 
         ret = "Welcome to the ⌚ setup!\nPlease go to https://sink.discord.bot/⌚ to generate an import code!\nRun this command with the Import config to set up the bot on this guild."
-        if len(full_guild_export) <= 2000:
-            ret += "\n\nIf you are currently on a mobile device, react to this message with 📞 (`telephone_receiver`) to receive a DM with the guild data for copyable purposes."
+        if len(full_guild_export) <= 2000 and message.author.is_on_mobile():
+            ret += "\n\nI am detecting that you are currently on a mobile device. React to this message with ☎ (`telephone`) to receive a DM with the data that can easily be copied."
         
         msg = await message.channel.send(ret, embed=embed, files=files)
 
         if len(full_guild_export) <= 2000:
             def check(reaction, user):
                 return (reaction.message.id == msg.id and
-                        reaction.emoji == "📞" and
+                        reaction.emoji == "☎" and
                         user.id == message.author.id)
 
             try:
@@ -642,7 +642,7 @@ async def setup(message, args, **kwargs):
                 try:
                     await message.author.send(full_guild_export)
                 except:
-                    await message.channel.send("DM failed. Please ensure your DMs are enabled.")
+                    await message.channel.send("DM failed. Please ensure your DMs are enabled and run the command again.")
     
         return True
     

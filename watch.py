@@ -142,16 +142,14 @@ async def check_guild_logs(guild, guild_config):
             role = None
 
             if e.action == discord.AuditLogAction.member_role_update:
-                before = [r for r in e.changes.before.roles]
-                after = [r for r in e.changes.after.roles]
 
-                for r in before:
+                for r in e.changes.before.roles:
                     if r.id in special_roles:
                         event_type = "role_remove"
                         role = r
                         events += [Event(guild.id, event_type, e.target.id, str(e.target), e.user, reason, e.created_at, role.id, role.name)]
 
-                for r in after:
+                for r in e.changes.after.roles:
                     if r.id in special_roles:
                         event_type = "role_add"
                         role = r
@@ -469,7 +467,7 @@ async def reason(message, args, **kwargs):
             await message.channel.send(msg)
             return
 
-    if len(events) > 1:
+    if len(events) > 3:
         await message.channel.send(f"This will update cases **{num[0]+offset}** to **{num[-1]+offset}**.\nAre you sure you want to update **{len(events)}** cases? (Say `{len(events)}` to confirm)")
 
         def check(m):
@@ -502,6 +500,8 @@ async def reason(message, args, **kwargs):
     """, reason, message.author.id, message.guild.id, num[0], num[-1])
 
     ret = "👌"
+    if len(events) > 1:
+        ret += f"\nUpdated **{len(events)}** cases."
 
     async with message.channel.typing():
         for m in msgs:
@@ -510,7 +510,7 @@ async def reason(message, args, **kwargs):
     if len(events) != len(msgs):
         msg = f"\nUnfortunately, the message tied to this case cannot be found. Please `recall` this case to resend it. (Case {num[0]+offset})"
         if len(events) > 1:
-            msg = f"\nUnfortunately, at least one message tied to these cases cannot be found. Please `recall` the missing cases to resend it. (Check cases {num[0]+offset} to {num[-1]+offset})"
+            msg = f"\n\nUnfortunately, at least one message tied to these cases cannot be found. Please `recall` the missing cases to resend it. (Check cases {num[0]+offset} to {num[-1]+offset})"
         ret += msg
 
     await message.channel.send(ret)

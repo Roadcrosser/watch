@@ -559,7 +559,7 @@ async def recall(message, args, **kwargs):
     if msg:
         embed = discord.Embed(
             title=ret,
-            color=message.guild.me.color if message.guild.me.color.value != 0 else discord.Embed.Empty,
+            color=util.get_color(message.guild.me),
             description="\n".join([e if i != 0 else " | ".join([v if u != e.count(" | ") else f"[{v}]({msg.jump_url})" for u, v in enumerate(e.split(" | "))]) for i, e in enumerate(msg.content.split("\n"))]), # this is so bad aaaaaaaaaaa
             timestamp=new_entry.timestamp
             )
@@ -580,7 +580,7 @@ async def setup(message, args, **kwargs):
             await message.channel.send("I require the `EMBED_LINKS` and `ATTACH_FILES` permissions to use this command!")
             return
             
-        embed = discord.Embed(color=message.guild.me.color if message.guild.me.color.value != 0 else discord.Embed.Empty)
+        embed = discord.Embed(color=util.get_color(message.guild.me))
     
         config_export = "None generated."
 

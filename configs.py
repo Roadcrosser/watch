@@ -1,5 +1,5 @@
 from options import Options
-from util import encode
+from util import encode, get_color
 import json
 import discord
 
@@ -31,7 +31,7 @@ class Configs():
                     }))
     
     def as_embed(self, guild):
-        embed = discord.Embed(color=guild.me.color if guild.me.color.value != 0 else discord.Embed.Empty)
+        embed = discord.Embed(color=get_color(guild.me))
         embed.add_field(name="Channel", value=f"<#{self.post_channel}>")
 
         guild_roles = {i.id for i in guild.roles}

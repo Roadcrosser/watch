@@ -60,26 +60,32 @@ async def on_run_check_loop():
         to_check = set(bot._guild_check_queue)
         # inb4 another value is added here before I clear it haha
         bot._guild_check_queue = []
-
+        
         for guild in to_check:
 
-            # Check if guild can be posted to
-            if not guild.me.guild_permissions.view_audit_log:
-                continue
-            
-            guild_config = await get_guild_configs(guild.id)
-            if not guild_config.guild_id:
-                continue
-            
-            channel = guild_config.post_channel
-            channel = guild.get_channel(channel)
+            try:
+                # Check if guild can be posted to
+                if not guild.me.guild_permissions.view_audit_log:
+                    continue
+                
+                guild_config = await get_guild_configs(guild.id)
+                if not guild_config.guild_id:
+                    continue
+                
+                channel = guild_config.post_channel
+                channel = guild.get_channel(channel)
 
-            if not channel or not channel.permissions_for(guild.me).send_messages:
-                continue
-            
-            # Get entries
-            entries = await check_guild_logs(guild, guild_config)
-            await post_entries(entries, channel, guild_config)
+                if not channel or not channel.permissions_for(guild.me).send_messages:
+                    continue
+                
+                # Get entries
+                entries = await check_guild_logs(guild, guild_config)
+                await post_entries(entries, channel, guild_config)
+            except Exception as e:
+                print(f"Error in guild {guild.id}")
+                print(e.__traceback__)
+
+                # TODO: Add webhook reporting
 
         await asyncio.sleep(2)
 

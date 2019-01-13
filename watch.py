@@ -1,5 +1,7 @@
 import discord
 import asyncio
+import aiohttp
+import traceback
 import datetime
 import random
 import asyncpg
@@ -17,8 +19,10 @@ from configs import Configs
 from util import encode, decode
 
 bot = discord.Client()
+bot.session = aiohttp.ClientSession()
 
 bot.timestamp = 0
+bot.last_check_in = 0
 bot._guild_check_queue = []
 bot._guild_prefix_cache = {}
 
@@ -54,6 +58,11 @@ event_t = [discord.AuditLogAction.kick, discord.AuditLogAction.ban, discord.Audi
 event_t_str = ["kick", "ban", "unban", "role_update", "role_add", "role_remove"]
 event_t_display = ["Kick", "Ban", "Unban", "Special Role Modified", "Special Role Added", "Special Role Removed"]
 
+async def send_webhook(url=cfg.get("webhook_url"), **kwargs):
+    if url:
+        webhook = discord.Webhook.from_url(url, adapter=discord.AsyncWebhookAdapter(bot.session))
+        return await webhook.send(**kwargs)
+
 @bot.event
 async def on_run_check_loop():
     while True:
@@ -82,10 +91,30 @@ async def on_run_check_loop():
                 entries = await check_guild_logs(guild, guild_config)
                 await post_entries(entries, channel, guild_config)
             except Exception as e:
-                print(f"Error in guild {guild.id}")
-                print(e.__traceback__)
+                text = "".join(traceback.TracebackException.from_exception(e).format())
+                embed_limit = 10
+                size = 2048 - 10
 
-                # TODO: Add webhook reporting
+                print(f"Error in guild {guild.id}")
+                print(text)
+
+                # Report errors to webhook
+                await send_webhook(
+                    content=f"<@{cfg['owner_id']}> Error in guild {guild.id} ({guild.name})",
+                    embeds=[
+                        discord.Embed(
+                            color=discord.Color(value=0xC62828),
+                            description=f"```py\n{text[i:i+size]}\n```")
+                            for i in range(0, len(text), size)[-embed_limit:]
+                        ]
+                )
+        
+        # Check in every hour
+        now = datetime.datetime.utcnow().timestamp()
+
+        if now - bot.last_check_in > 3600:
+            await send_webhook(content="Hourly check-in successful.")
+            bot.last_check_in = now
 
         await asyncio.sleep(2)
 

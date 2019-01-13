@@ -36,7 +36,7 @@ async def get_member(bot, member_id):
 
     return user
 
-async def get_color(member):
+def get_color(member):
     return member.color if member.color.value != 0 else discord.Embed.Empty
 
 def encode(text):

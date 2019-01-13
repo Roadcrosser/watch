@@ -306,7 +306,7 @@ async def time(message, args, **kwargs):
 _ = None
 
 async def evaluate(message, args, **kwargs):
-    if message.author.id == 116138050710536192 and args:
+    if message.author.id == cfg["owner_id"] and args:
         global _
         ctx = message
         if args.split(' ', 1)[0] == 'await':
@@ -324,7 +324,7 @@ async def evaluate(message, args, **kwargs):
         return True
 
 async def sudo(message, args, **kwargs):
-    if message.author.id == 116138050710536192:
+    if message.author.id == cfg["owner_id"]:
         sudo_funcs = {
             "reset": (_reset, (message, None)),
             "forcecheckall": (bot._guild_check_queue.extend, (bot.guilds,)),
@@ -355,7 +355,7 @@ async def sudo(message, args, **kwargs):
 
 
 async def close(message, **kwargs):
-    if message.author.id == 116138050710536192:
+    if message.author.id == cfg["owner_id"]:
         msg = await message.channel.send("Shutting down...")
         await bot.db.close()
         await bot.logout()

@@ -110,11 +110,11 @@ async def on_run_check_loop():
                 )
         
         # Check in every hour
-        now = datetime.datetime.utcnow().timestamp()
+        now = datetime.datetime.utcnow()
 
-        if now - bot.last_check_in > 3600:
-            await send_webhook(content="Hourly check-in successful.")
-            bot.last_check_in = now
+        if now.timestamp() - bot.last_check_in > 3660:
+            await send_webhook(content=f"Hourly check-in successful. `{now.strftime('%Y-%m-%d %H:%M')}`")
+            bot.last_check_in = now.timestamp()
 
         await asyncio.sleep(2)
 

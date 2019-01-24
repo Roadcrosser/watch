@@ -306,9 +306,12 @@ async def on_message(message):
     if not custom_prefix[0]:
         custom_prefix = []
 
+    prefix = ""
+
     for p in prefixes + custom_prefix:
         if message.content.lower().startswith(p):
             msg = message.content[len(p):].strip()
+            prefix = p
             break
 
     if not msg:
@@ -330,7 +333,7 @@ async def on_message(message):
         args = None
         if len(split) > 1:
             args = split[1]
-        kwargs = {"message": message, "cmd": cmd, "args": args}
+        kwargs = {"message": message, "cmd": cmd, "args": args, "prefix": prefix}
         func = await cmds[cmd](**kwargs)
 
 async def time(message, args, **kwargs):
@@ -817,10 +820,54 @@ async def invite(message, **kwargs):
     await message.channel.send(f"<https://discordapp.com/oauth2/authorize?client_id={cfg['bot_id']}&scope=bot&permissions=128>")
     return True
 
+async def information(message, args, prefix, **kwargs):
+    if prefix == "!":
+        return
+
+    msg = """For first time users, read this to learn how to set up: https://gist.github.com/Roadcrosser/04837764051b35fa10acad650281106d
+
+Prefixes: Mentions, `w!`, `⌚`
+Commands:
+```
+help - This message
+invite - Display bot invite
+
+setup - Setup the bot for the server (Mod only)
+settings - View your server settings (Mod only)
+
+reason - Set the reason for a case (Mod only)
+        (Run "help reason" for further information)
+recall - Recall a previously posted case
+reset - Reset all settings/cases (Owner only)
+```"""
+
+    if args and args.lower() == "reason":
+        msg = """```
+reason <case number> <reason>
+
+Mod only
+Sets the reason and responsible moderator for the given case number.
+
+Case number can be:
+  2           Case #2
+  latest      The latest case
+  latest~2    The third-latest case
+  2..5        Case #2 to #5
+  2..         Case #2 to the latest case
+  latest~2..  The last 3 cases
+
+Ex: reason latest Keeps spamming
+Ex: reason 22..50 Lots of riaders
+```"""
+
+    await message.channel.send(msg)
+    return True
+
 cmds = {
     "time": time,
     "eval": evaluate,
     "sudo": sudo,
+    "help": information,
     "quit": close,
     "reason": reason,
     "recall": recall,

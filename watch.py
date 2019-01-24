@@ -73,6 +73,11 @@ async def on_run_check_loop():
         for guild in to_check:
 
             try:
+
+                # Check if still in guild
+                if not (guild and bot.get_guild(guild.id)):
+                    continue
+
                 # Check if guild can be posted to
                 if not guild.me.guild_permissions.view_audit_log:
                     continue

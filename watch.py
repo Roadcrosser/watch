@@ -800,7 +800,7 @@ async def recall(message, args, **kwargs):
                     await message.channel.send(embed=embed)
                     return
             elif is_mod(message.author):
-                update_entry(msg, new_entry, configs)
+                await update_entry(msg, new_entry, configs)
                 ret = "This entry has been updated"
 
         if ret:

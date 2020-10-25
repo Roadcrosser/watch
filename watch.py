@@ -18,7 +18,9 @@ from options import Options
 from configs import Configs
 from util import encode, decode
 
-bot = discord.Client()
+intents = discord.Intents.default()
+intents.members = True
+bot = discord.Client(intents=intents)
 bot.session = aiohttp.ClientSession()
 
 bot.timestamp = 0

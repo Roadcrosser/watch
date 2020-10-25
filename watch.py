@@ -196,7 +196,7 @@ async def check_guild_logs(guild, guild_config):
     oldest = None
     while not break_signal:
         raw_events = await guild.audit_logs(
-            limit=100, before=discord.Object(id=oldest)
+            limit=100, before=discord.Object(id=oldest) if oldest else None
         ).flatten()
 
         if oldest == None:

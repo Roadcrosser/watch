@@ -25,7 +25,7 @@ async def get_member(bot, member_id):
     
     if not user:
         try:
-            user = await bot.get_user_info(member_id)
+            user = await bot.fetch_user(member_id)
         except:
             pass
     

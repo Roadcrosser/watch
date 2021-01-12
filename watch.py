@@ -802,6 +802,8 @@ async def recall(message, args, **kwargs):
                     await message.channel.send(embed=embed)
                     return
             elif is_mod(message.author):
+                actor = await util.get_member(bot, event.get("actor"))
+                new_entry.set_actor(actor)
                 await update_entry(msg, new_entry, configs)
                 ret = "This entry has been updated"
 

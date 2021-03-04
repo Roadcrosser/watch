@@ -210,7 +210,7 @@ async def check_guild_logs(guild, guild_config):
         oldest = raw_events[-1].id
 
         for e in raw_events:
-            if e.id <= min(recent_events):
+            if e.id <= max(recent_events):
                 break_signal = True
                 break
 

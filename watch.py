@@ -1024,11 +1024,8 @@ async def settings(message, **kwargs):
 
 
 async def reset(message, **kwargs):
-    if is_mod(message.author):
-        if message.author.id != message.guild.owner.id:
-            await message.channel.send("Only the server owner can run this command!")
-            return
-    else:
+    if message.author.id != message.guild.owner.id:
+        await message.channel.send("Only the server owner can run this command!")
         return
 
     configs = await get_guild_configs(message.guild.id)
